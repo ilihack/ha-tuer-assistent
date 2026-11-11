@@ -45,7 +45,7 @@ Daneben enthält die Integration die Bausteine für einen Text-Agenten hinter de
 
 | Werkzeug | Felder | Was passiert |
 |---|---|---|
-| `bewohner_rufen` | anliegen | Ereignis; die Automation lässt das Handy klingeln |
+| `bewohner_rufen` | anliegen | Ereignis; die Automation lässt das Handy klingeln; danach legt die Integration auf (Station frei für die App) |
 | `nachricht_weitergeben` | fuer, nachricht | Ereignis; die Automation schickt den Text aufs Handy (nur für den Bewohner, nie für Mieter) |
 | `auflegen` | – | Ruf endet, sobald die Verabschiedung gespielt ist |
 
@@ -97,7 +97,7 @@ xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche
 
 ## Stand
 
-Version 2.1.1 (11.11.2026): die Integration ist eigene Innenstation, kein VoIP Stack nötig. Nach einem Ruf kommt eine Meldung mit der
+Version 2.1.2 (11.11.2026): die Integration ist eigene Innenstation, kein VoIP Stack nötig. Nach einem Ruf kommt eine Meldung mit der
 Mitschrift, wenn er den Bewohner betrifft; Schlüssel und Anmeldung werden überwacht. Die Anweisung folgt dem Leitfaden von xAI für
 Grok Voice (Abschnitte, kurz). Mit gestellter Station und gestelltem xAI
 geprüft; mit dem echten Grok Voice über SIP-Proben geprüft. Am echten Klingeln ist die eigene Anmeldung noch nicht geprüft. Die Tests

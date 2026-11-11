@@ -29,7 +29,10 @@ mit Port 0 ab.
 - Nachdenken „high“ (Vorgabe von xAI): Mit „none“ schickte es Zusteller nicht in die Paketbox und wusste die Bewohner nicht, bei
   gleicher Wartezeit bis zum ersten Ton (11.11.2026, r53/gv_proto.py).
 - Werkzeuge: dieselben drei mit denselben Grenzen (`Werkzeug` aus __init__.py). „auflegen“ beendet den Ruf, sobald die Verabschiedung
-  gespielt ist; `tuer_assistent.auflegen` beendet ihn ebenso.
+  gespielt ist; `tuer_assistent.auflegen` beendet ihn ebenso. Nach „bewohner_rufen“ endet der Ruf ebenso nach der Antwort, damit die
+  Sprechanlage frei ist und er sich über die App melden kann (Wort des Betreibers vom 11.11.2026 nachts: „solange der Grok damit redet, dann kann
+  ich nicht telefonieren … direkt auflegen und sagen, ich hab Bescheid gesagt, der Muster könnte sich jeden Moment mit der Sprechanlage
+  verbinden“).
 - Vollduplex (Wort des Betreibers vom 11.11.2026 abends: „Die Komplexität mit Mikrofon aus brauchst du nicht. Grok … hat selbst eine gute
   Echo-Unterbindung und die Außensprechanlage auch“): Der Ton des Besuchers geht immer zu xAI. Fängt er an zu sprechen, bricht xAI die
   laufende Antwort ab (bei server_vad von selbst); die Gegenstelle verwirft den noch nicht gespielten Ton und alles, was von dieser
@@ -320,6 +323,7 @@ class Ruf:
         self.zuletzt_ton = 0.0
         self.antwort_fertig = True
         self.auflegen_wunsch = False
+        self.auflegen_grund = "aufgelegt nach Verabschiedung"
         self.offen = 0  # angeforderte Antworten nach einem Werkzeug, die noch nicht begonnen haben
         self.laeuft = False  # eine Antwort von xAI läuft (zwischen response.created und response.done)
         self.nach_werkzeug = False  # nach dem Ende dieser Antwort eine neue anfordern (die Ergebnisse der Werkzeuge sind gesendet)
@@ -448,7 +452,7 @@ class Ruf:
                     self.rtp.sendto(kopf + nutz, ziel)
                 seq, ts, naechst = (seq + 1) & 0xFFFF, (ts + groesse) & 0xFFFFFFFF, naechst + takt
             if self.auflegen_wunsch and self.antwort_fertig and not self.ausgang and time.monotonic() - self.zuletzt_ton > 0.8:
-                self.hass.async_create_task(self.beenden("aufgelegt nach Verabschiedung"))
+                self.hass.async_create_task(self.beenden(self.auflegen_grund))
                 return
 
     # --- xAI ----------------------------------------------------------------------------------------------------------------
@@ -547,6 +551,8 @@ class Ruf:
                                    "auflegen": "(aufgelegt)"}.get(name, "(%s)" % name))
             if name == "auflegen":
                 self.auflegen_wunsch = True
+            elif name == "bewohner_rufen":  # die Sprechanlage für ihn freimachen: nach dieser Antwort auflegen
+                self.auflegen_wunsch, self.auflegen_grund = True, "aufgelegt nach dem Bescheid an dich (Sprechanlage frei)"
         await self.raus.put({"type": "conversation.item.create", "item": {
             "type": "function_call_output", "call_id": e.get("call_id"), "output": json.dumps(ausgabe, ensure_ascii=False)}})
         self.antwort_fertig = False  # die Antwort nach dem Werkzeug kommt noch (sonst legte auflegen vor der Verabschiedung auf)
