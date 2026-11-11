@@ -1,0 +1,92 @@
+{
+  "stand": "Tür-Assistent am obersten Knopf der Sprechanlage EG (10.11.2026 nachts, deine Nachricht: „Wir brauchen auch 3 Helfer, wo die Namen speichert, so dass wir in der Zukunft schneller Namen ändern können“). Die Anweisung des Assistenten liest die Namen bei jeder Antwort aus diesen Helfern (anhang/runde12/ki/tuer_assistent.json); ein Mieterwechsel ist damit eine Eingabe unter Einstellungen → Geräte & Dienste → Helfer. Seit 11.11.2026 dazu die Schalter „Tür Mitschrift“ und „Tür Ausfall proben“ und der Text „Tür Lage Paketbox“.",
+  "helfer": [
+    {
+      "domain": "input_text",
+      "entity_id": "input_text.tur_namen_dachgeschoss",
+      "options": {
+        "name": "Tür Namen Dachgeschoss",
+        "icon": "mdi:account-multiple",
+        "min": 0,
+        "max": 100,
+        "mode": "text"
+      },
+      "wert": "",
+      "bedeutung": "wer im Dachgeschoss wohnt, so wie es der Assistent sagen soll"
+    },
+    {
+      "domain": "input_text",
+      "entity_id": "input_text.tur_namen_erdgeschoss",
+      "options": {
+        "name": "Tür Namen Erdgeschoss",
+        "icon": "mdi:account-multiple",
+        "min": 0,
+        "max": 100,
+        "mode": "text"
+      },
+      "wert": "",
+      "bedeutung": "wer im Erdgeschoss wohnt (du); nur für diesen Haushalt sagt der Assistent tagsüber, ob jemand da ist, und nur ihn lässt er rufen"
+    },
+    {
+      "domain": "input_text",
+      "entity_id": "input_text.tur_namen_untergeschoss",
+      "options": {
+        "name": "Tür Namen Untergeschoss",
+        "icon": "mdi:account-multiple",
+        "min": 0,
+        "max": 100,
+        "mode": "text"
+      },
+      "wert": "",
+      "bedeutung": "wer im Untergeschoss wohnt; Besucher klingeln für ihn am Eingang im Erdgeschoss"
+    },
+    {
+      "domain": "input_text",
+      "entity_id": "input_text.tur_adresse",
+      "options": {
+        "name": "Tür Adresse",
+        "icon": "mdi:map-marker",
+        "min": 0,
+        "max": 60,
+        "mode": "text"
+      },
+      "bedeutung": "Straße und Hausnummer, so wie der Assistent sie bestätigen darf (dein Wort vom 10.11.2026: „Str auch sagen dürfen“). Der Wert steht nur in Home Assistant, nicht in dieser Datei. Leer gelassen sagt der Assistent zur Adresse nichts.",
+      "wert": ""
+    },
+    {
+      "domain": "timer",
+      "entity_id": "timer.tur_ruf_pause",
+      "options": {
+        "name": "Tür Ruf-Pause",
+        "icon": "mdi:phone-ring",
+        "duration": "00:01:00",
+        "restore": false
+      },
+      "bedeutung": "läuft 1 min nach jedem lauten Ruf aufs Handy; solange kommt ein weiterer Ruf nur als Banner (ein Besucher soll das Handy nicht dauernd klingeln lassen können)"
+    },
+    {
+      "domain": "input_boolean",
+      "entity_id": "input_boolean.tur_mitschrift",
+      "options": {
+        "name": "Tür Mitschrift",
+        "icon": "mdi:text-box-outline"
+      },
+      "wert": "on",
+      "bedeutung": "an: jeder Wortwechsel am obersten Knopf kommt als Meldung aufs Handy (zum Fehlersuchen, deine Nachricht vom 11.11.2026); aus: nur noch, was ein Besucher bewusst auslöst, und Ausfälle"
+    },
+    {
+      "domain": "input_text",
+      "entity_id": "input_text.tur_lage_paketbox",
+      "options": {
+        "name": "Tür Lage Paketbox",
+        "icon": "mdi:mailbox",
+        "min": 0,
+        "max": 60,
+        "mode": "text"
+      },
+      "wert": "rechts von Ihnen",
+      "bedeutung": "wo die Briefkästen (Paketboxen) hängen, vom Besucher an der Sprechanlage aus gesehen; so sagt es der Assistent (deine Nachricht vom 11.11.2026: „kann einfach nur noch sagen, rechts von Ihnen“). Leer gelassen sagt er nur „hier am Eingang“."
+    }
+  ],
+  "hinweis": "Die Helfer für Namen und Adresse sind für Assist nicht freigegeben (der Hauptagent braucht sie nicht). Leer gelassen sagt der Assistent für dieses Stockwerk keinen Namen. Die Anweisung übernimmt aus einem Helfer nur Buchstaben, Ziffern, Leerzeichen, Punkt, Komma und Bindestrich, höchstens 60 Zeichen in einer Zeile: Wer einen Helfer ändern kann, kann dem Assistenten so keine längere Anweisung unterschieben."
+}

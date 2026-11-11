@@ -1,0 +1,52 @@
+{
+  "id": "klingel_unten",
+  "alias": "Klingel EG: oberster Knopf (Assistent)",
+  "description": "Der oberste Knopf der Sprechanlage EG ruft die Innenstation 9904 an (Knopfbelegung der Station, Platz 0; seit 09.11.2026 abends). Als 9904 meldet sich die eigene Integration an (custom_components/tuer_assistent/sprache.py; deine Nachricht vom 11.11.2026: „bau die komplette Integration“), nimmt den Ruf selbst an und lässt Grok Voice mit dem Besucher sprechen (für Besucher „Empfang“; er kann im Haus nichts schalten und begrüßt zuerst). Im Haus wird nichts angesagt (deine Nachricht vom 11.11.2026 spätabends: „bei diesem Knopf brauchen wir … nicht überall innen drin … Nachrichten abzuspielen … Die Meldung aufs Handy ist dann das Transkript von dem, was abging“): Am Ende jedes Rufs, auch eines gescheiterten, feuert die Integration tuer_assistent_grok_voice mit „ende“, der Mitschrift und dem Grund des Endes; diese Automation schickt das als eine Meldung aufs Handy (Kanal „Klingel“, Tippen öffnet das Bild der Sprechanlage), aber nur, wenn das Gespräch dich betrifft (dein Name aus dem Helfer „Tür Namen Erdgeschoss“ kommt vor oder der Empfang hat dir Bescheid gegeben oder eine Nachricht weitergegeben) oder der Empfang gestört war (nicht angenommen, xAI, Fehler). Gespräche nur über die Mieter kommen nicht (deine Nachricht vom 11.11.2026 spätabends: „Wegen der Meldungen, die meine Mieter betreffen: Die sollten überhaupt nicht zu mir kommen, damit habe ich nichts zu tun“). Was der Besucher sagt, stammt von einem Fremden: Internet-Adressen darin werden durch „[Link entfernt]“ ersetzt. Während des Gesprächs kommen nur die Meldungen, die der Besucher bewusst auslöst (Bescheid an dich, Nachricht; Automation „Tür-Assistent: Handy rufen, Nachricht, Auflegen“). Einen Ersatzweg gibt es nicht (deine Nachricht: „Voice-over-Voice und wenn es kaputt geht, dann bleibt es halt kaputt“); ist der Empfang gestört, sagt es diese Meldung und die Plakette „Empfang“ auf den Hubs. Die drei Knöpfe darunter (DG 9902, EG 9901, UG 9903) bleiben unberührt. Mehrere Rufe hintereinander: einer nach dem anderen.",
+  "triggers": [
+    {
+      "trigger": "event",
+      "event_type": "tuer_assistent_grok_voice",
+      "event_data": {
+        "ergebnis": "ende"
+      }
+    }
+  ],
+  "conditions": [],
+  "actions": [
+    {
+      "variables": {
+        "mitschrift": "{{ (trigger.event.data.mitschrift | default('', true) | string | regex_replace('(?i)(https?://|www\\\\.)\\\\S*', '[Link entfernt]'))[:1800] }}",
+        "grund": "{{ trigger.event.data.grund | default('', true) | string }}",
+        "sekunden": "{{ trigger.event.data.sekunden | default(0) | int(0) }}",
+        "angenommen": "{{ trigger.event.data.angenommen | default(false) }}",
+        "stoerung": "{{ (not angenommen and grund.startswith('nicht angenommen')) or 'xAI' in grund or 'Fehler' in grund or 'fehlgeschlagen' in grund }}",
+        "betrifft_dich": "{% set t = mitschrift | lower %}{% set namen = states('input_text.tur_namen_erdgeschoss') | regex_findall('[A-Za-zÀ-ÿ-]{3,}') | map('lower') | reject('in', ['herr', 'frau', 'familie', 'und', 'unknown', 'unavailable']) | list %}{{ '(dir bescheid gegeben)' in t or '(nachricht an dich weitergegeben)' in t or (namen | select('in', t) | list | count) > 0 }}"
+      }
+    },
+    {
+      "alias": "Nur, was dich betrifft, oder eine Störung (Gespräche über die Mieter kommen nicht zu dir)",
+      "condition": "template",
+      "value_template": "{{ stoerung or betrifft_dich }}"
+    },
+    {
+      "alias": "Eine Meldung aufs Handy: das ganze Gespräch (Kanal „Klingel“, Tippen öffnet das Bild)",
+      "action": "script.meldung",
+      "continue_on_error": true,
+      "data": {
+        "titel": "{{ 'Tür: Klingel oben, Empfang gestört' if stoerung else 'Tür: Gespräch am obersten Knopf' }}",
+        "nachricht": "{{ now().strftime('%H:%M') }} Uhr, {{ sekunden }} s{{ ' (' ~ grund ~ ')' if grund else '' }}\n{{ mitschrift if mitschrift else ('Der Besucher hat nichts gesagt.' if angenommen else 'Kein Gespräch.') }}",
+        "daten": {
+          "tag": "klingel_unten",
+          "channel": "Klingel",
+          "importance": "high",
+          "priority": "high",
+          "ttl": 0,
+          "notification_icon": "mdi:doorbell",
+          "clickAction": "entityId:camera.sprechanlage_eg_aussen_sub"
+        }
+      }
+    }
+  ],
+  "mode": "queued",
+  "max": 5
+}

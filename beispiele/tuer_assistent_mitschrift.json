@@ -1,0 +1,62 @@
+{
+  "id": "tuer_assistent_mitschrift",
+  "alias": "Tür-Assistent: Mitschrift und Störung aufs Handy",
+  "description": "Schickt aufs Handy, was am obersten Knopf gesprochen wird, und meldet Ausfälle. (1) Mitschrift: Der Agent „Empfang“ (custom_components/tuer_assistent/conversation.py) feuert je Wortwechsel das Ereignis tuer_assistent_gespraech mit dem Text, den die Erkennung verstanden hat, und der Antwort. Solange der Schalter „Tür Mitschrift“ (input_boolean.tur_mitschrift) an ist, kommt jeder Wortwechsel als Einblendung (Kanal „Klingel“, wie alle Meldungen aufs Handy). Zum Suchen von Fehlern gedacht; danach ausschalten, dann bleiben nur die Meldungen, die ein Besucher bewusst auslöst (deine Nachricht vom 11.11.2026: „Aus Debugging-Gründen sollen übrigens alle Nachrichten und Transkriptionen an mein Handy gesendet werden. Das schalten wir aber nachher aus“). (2) Störung, unabhängig vom Schalter: Beginn und Ende eines Problems mit der Anmeldung an der Station oder mit dem xAI-Schlüssel (custom_components/tuer_assistent/sprache.py) und die Ersatzantwort des Text-Agenten kommen als Meldung im Kanal „Klingel“. Der Auslöser auf den VoIP Stack ist mit ihm am 11.11.2026 entfallen. Mit Grok Voice feuert der Text-Agent keine Wortwechsel; das ganze Gespräch kommt am Ende über `klingel_unten`. Der Text des Besuchers stammt von einem Fremden: Internet-Adressen darin werden durch „[Link entfernt]“ ersetzt. Schaltet nichts.",
+  "triggers": [
+    {
+      "trigger": "event",
+      "event_type": "tuer_assistent_gespraech",
+      "id": "wort"
+    }
+  ],
+  "conditions": [],
+  "actions": [
+    {
+      "choose": [
+        {
+          "alias": "Ein Wortwechsel",
+          "conditions": [
+            {
+              "condition": "trigger",
+              "id": "wort"
+            },
+            {
+              "condition": "template",
+              "value_template": "{{ is_state('input_boolean.tur_mitschrift', 'on') or (trigger.event.data.ersatz | default('', true)) != '' }}"
+            }
+          ],
+          "sequence": [
+            {
+              "variables": {
+                "ersatz": "{{ trigger.event.data.ersatz | default('', true) | string }}",
+                "besucher": "{{ (trigger.event.data.besucher | default('', true) | string | regex_replace('(?i)(https?://|www\\\\.)\\\\S*', '[Link entfernt]'))[:300] }}",
+                "empfang": "{{ (trigger.event.data.empfang | default('', true) | string)[:300] }}",
+                "sekunden": "{{ trigger.event.data.sekunden | default(0) }}",
+                "werkzeug": "{{ trigger.event.data.werkzeug | default('', true) | string }}",
+                "ki": "{{ trigger.event.data.ki | default('', true) | string }}"
+              }
+            },
+            {
+              "action": "script.meldung",
+              "continue_on_error": true,
+              "data": {
+                "titel": "{{ 'Tür: Empfang wieder bereit' if ('wieder an der Station angemeldet' in ersatz or 'wieder in Ordnung' in ersatz) else ('Tür: Empfang ohne Verbindung' if ersatz else 'Tür-Mitschrift') }}",
+                "nachricht": "{{ now().strftime('%H:%M:%S') }} {% if besucher == '' and empfang == '' and ersatz %}{{ ersatz }}{% else %}{{ '(Ruf beginnt)' if besucher.startswith('Incoming SIP call') else 'Besucher: „' ~ besucher ~ '“' }} → Empfang: „{{ empfang }}“ ({{ sekunden }} s{{ ', ' ~ ki if ki else '' }}{{ ', Werkzeug ' ~ werkzeug if werkzeug else '' }}){{ ' Ersatzantwort, Grund: ' ~ ersatz if ersatz else '' }}{% endif %}",
+                "daten": {
+                  "channel": "Klingel",
+                  "importance": "high",
+                  "priority": "high",
+                  "ttl": 0,
+                  "notification_icon": "mdi:text-box-outline",
+                  "clickAction": "entityId:camera.sprechanlage_eg_aussen_sub"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "mode": "queued",
+  "max": 20
+}

@@ -1,0 +1,145 @@
+{
+  "id": "tuer_assistent_werkzeuge",
+  "alias": "Tür-Assistent: Handy rufen, Nachricht, Auflegen",
+  "description": "Führt aus, was der Empfang (Tür-Assistent) mit seinen drei Werkzeugen auslöst (custom_components/tuer_assistent; Ereignis tuer_assistent_werkzeug). bewohner_rufen: immer ein Banner aufs Handy (Kanal „Klingel“, Tippen öffnet das Bild der Sprechanlage). Laut nur, wenn laut sensor.anwesend niemand zu Hause ist oder der Sensor nichts weiß: dann eine zweite Meldung im eigenen Kanal „Tür Ruf“, dem du in Android einen Alarm-Ton und „Bitte nicht stören“ ignorieren gibst (dein Wort vom 11.11.2026: „bei einem bestimmten Benachrichtigungstyp zu sagen, es muss dieser Ton abgespielt werden, was ein Alarm wäre“; die gesprochene Ansage über den Wecker-Kanal davor kam nicht an): Bist du da, klingelt der Besucher an der Wohnung. Ob laut oder nicht, entscheidet diese Automation und nicht die KI, damit in ihrer Anweisung nie steht, dass jemand da ist. Nach einem lauten Ruf 1 min Ruf-Pause (timer.tur_ruf_pause), in der ein weiterer Ruf nur als Banner kommt. nachricht_weitergeben: der Text als Banner; 25 s danach wird aufgelegt, wenn nichts mehr kommt (jedes weitere Werkzeug startet die Automation neu und bricht das Warten ab). auflegen: nach 6 s auflegen, damit die Verabschiedung noch zu hören ist. Aufgelegt wird mit tuer_assistent.auflegen (beendet nur ein laufendes Gespräch des Assistenten; voip_stack.hangup kann das nicht, 11.11.2026). Der Text in den Meldungen stammt vom Besucher (über die KI): Internet-Adressen darin werden durch „[Link entfernt]“ ersetzt, und die Meldung sagt, dass der Besucher spricht. Deine Nachrichten: 10.11.2026 „Mach die Integration, dass mein Handy da klingelt o.ä. … nach einer langen Stille sagt die KI Danke und legt auf“; 11.11.2026 „Wenn ich da bin, kann man ja sagen, klingeln Sie hier; wenn ich nicht da bin, müssen wir diese Rufweiterleitung auf mein Handy machen“.",
+  "triggers": [
+    {
+      "trigger": "event",
+      "event_type": "tuer_assistent_werkzeug"
+    }
+  ],
+  "conditions": [],
+  "actions": [
+    {
+      "variables": {
+        "werkzeug": "{{ trigger.event.data.werkzeug | default('') }}",
+        "anliegen": "{{ (trigger.event.data.anliegen | default('', true) | string | regex_replace('(?i)(https?://|www\\\\.)\\\\S*', '[Link entfernt]'))[:300] }}",
+        "fuer": "{{ (trigger.event.data.fuer | default('', true) | string | regex_replace('(?i)(https?://|www\\\\.)\\\\S*', '[Link entfernt]'))[:100] }}",
+        "nachricht": "{{ (trigger.event.data.nachricht | default('', true) | string | regex_replace('(?i)(https?://|www\\\\.)\\\\S*', '[Link entfernt]'))[:300] }}",
+        "warten": "{{ {'auflegen': 6, 'nachricht_weitergeben': 25}.get(trigger.event.data.werkzeug | default(''), 0) }}"
+      }
+    },
+    {
+      "choose": [
+        {
+          "alias": "Ein Besucher möchte zu dir",
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ werkzeug == 'bewohner_rufen' }}"
+            }
+          ],
+          "sequence": [
+            {
+              "alias": "Banner (Kanal „Klingel“)",
+              "action": "script.meldung",
+              "continue_on_error": true,
+              "data": {
+                "titel": "Tür: Jemand möchte zu dir",
+                "nachricht": "{{ now().strftime('%H:%M') }} Uhr am obersten Knopf. Der Empfang meldet: {{ anliegen if anliegen else 'ohne Angabe' }}. Tippen öffnet das Bild.",
+                "daten": {
+                  "tag": "tuer_ruf",
+                  "channel": "Klingel",
+                  "importance": "high",
+                  "priority": "high",
+                  "ttl": 0,
+                  "notification_icon": "mdi:phone-ring",
+                  "clickAction": "entityId:camera.sprechanlage_eg_aussen_sub"
+                }
+              }
+            },
+            {
+              "alias": "Laut nur, wenn niemand zu Hause ist, und nicht in der Ruf-Pause",
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ states('sensor.anwesend') in ['niemand', 'unknown', 'unavailable'] }}"
+                },
+                {
+                  "condition": "state",
+                  "entity_id": "timer.tur_ruf_pause",
+                  "state": "idle"
+                }
+              ],
+              "then": [
+                {
+                  "action": "timer.start",
+                  "target": {
+                    "entity_id": "timer.tur_ruf_pause"
+                  }
+                },
+                {
+                  "alias": "Alarm im eigenen Kanal „Tür Ruf“ (Ton und „Bitte nicht stören“ stellst du in Android ein)",
+                  "action": "script.meldung",
+                  "continue_on_error": true,
+                  "data": {
+                    "titel": "Tür: Besuch für dich",
+                    "nachricht": "{{ now().strftime('%H:%M') }} Uhr: {{ anliegen if anliegen else 'Jemand möchte zu dir' }}. Tippen öffnet das Bild.",
+                    "daten": {
+                      "tag": "tuer_ruf_alarm",
+                      "channel": "Tür Ruf",
+                      "importance": "high",
+                      "priority": "high",
+                      "ttl": 0,
+                      "notification_icon": "mdi:bell-ring",
+                      "clickAction": "entityId:camera.sprechanlage_eg_aussen_sub"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "alias": "Nachricht oder abgegebenes Paket",
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ werkzeug == 'nachricht_weitergeben' }}"
+            }
+          ],
+          "sequence": [
+            {
+              "action": "script.meldung",
+              "continue_on_error": true,
+              "data": {
+                "titel": "Tür: Nachricht{{ ' für ' ~ fuer if fuer else '' }}",
+                "nachricht": "{{ now().strftime('%H:%M') }} Uhr, der Besucher sagt: {{ nachricht if nachricht else '(ohne Text)' }}",
+                "daten": {
+                  "channel": "Klingel",
+                  "importance": "high",
+                  "priority": "high",
+                  "ttl": 0,
+                  "notification_icon": "mdi:message-text",
+                  "clickAction": "entityId:camera.sprechanlage_eg_aussen_sub"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "alias": "Auflegen: nach der Verabschiedung 6 s, nach einer Nachricht 25 s ohne weiteres Werkzeug",
+      "if": [
+        {
+          "condition": "template",
+          "value_template": "{{ warten | int(0) > 0 }}"
+        }
+      ],
+      "then": [
+        {
+          "delay": {
+            "seconds": "{{ warten | int(0) }}"
+          }
+        },
+        {
+          "alias": "Beendet nur ein laufendes Gespräch des Assistenten",
+          "action": "tuer_assistent.auflegen",
+          "continue_on_error": true
+        }
+      ]
+    }
+  ],
+  "mode": "restart"
+}

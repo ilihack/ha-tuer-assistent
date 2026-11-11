@@ -1,0 +1,5 @@
+auflegen:
+  name: Gespräch des Tür-Assistenten beenden
+  description: >-
+    Beendet das laufende Gespräch des Tür-Assistenten („Empfang“) an der Sprechanlage. Ohne laufendes Gespräch geschieht nichts.
+    Das Ergebnis steht in tuer_assistent.stand (Attribut auflegen).
