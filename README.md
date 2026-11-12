@@ -213,7 +213,7 @@ Version 2.4.0 (12.11.2026):
 - Werkzeuge: `bewohner_rufen` nicht für Sendungen, die in die Paketbox kommen; die Meldung einer abgegebenen Sendung geht auch mit
   Abschied als Nachricht weiter.
 - Anweisung (`beispiele/anweisung.jinja`): auch Sendungen für den Bewohner kommen in die Paketbox, ohne ihn zu rufen; die Sendungen stehen
-  vor seinen Anliegen; siezen; Regeln nicht aussprechen.
+  vor seinen Anliegen; in anderen Sprachen die dortige Anrede (Mr., Bey, Pan); siezen; Regeln nicht aussprechen.
 
 Version 2.3.0:
 
