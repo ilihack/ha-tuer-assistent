@@ -25,7 +25,7 @@
         "mode": "text"
       },
       "wert": "",
-      "bedeutung": "wer im Erdgeschoss wohnt (du); nur für diesen Haushalt sagt der Assistent tagsüber, ob jemand da ist, und nur ihn lässt er rufen"
+      "bedeutung": "wer im Erdgeschoss wohnt: Vorname und Nachname (z. B. „Max Muster“); der Empfang sagt „Herr <Nachname>“ und erkennt auch den Vornamen und „Familie <Nachname>“; nur für diesen Haushalt sagt der Assistent, ob jemand da ist, und nur ihn lässt er rufen"
     },
     {
       "domain": "input_text",

@@ -214,6 +214,7 @@ Version 2.3.0 (12.11.2026):
   39 von 54 Regeln erfüllt, darunter 16 von 21 der Gold-Stufe. Offen ist, was an einer Einrichtung über die Oberfläche hängt (statt
   `configuration.yaml`); der Rest gilt hier nicht (Erkennung im Netz, wechselnde Geräte).
 - Eigenes Symbol in `brand/` (Home Assistant ab 2026.3).
+- Anweisung: Der Bewohner ist auch über Vornamen und „Familie <Nachname>“ zu finden (Helfer fürs Erdgeschoss mit Vor- und Nachnamen); ob etwas dringend ist, entscheidet das Modell; ausrichten geht immer; „Nachbarn“ sind die anderen Klingeln im Haus.
 
 Geprüft mit gestellter Station und gestelltem xAI, mit dem echten Grok Voice über Proben mit aufgenommenen Sätzen und mit simulierten
 Gesprächen. Die Tests liegen im Projektordner der Anlage, weil sie deren Prüfstand brauchen.
