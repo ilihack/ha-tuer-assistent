@@ -204,7 +204,18 @@ Einstellungen unter `grok_voice` in `configuration.yaml`:
 
 ## Stand
 
-Version 2.3.0 (12.11.2026):
+Version 2.4.0 (12.11.2026):
+
+- Jede Sprache wie Deutsch: Das Ergebnis jedes Werkzeugs sagt dem Modell, in der Sprache des Besuchers zu antworten (vorher sprach es
+  nach einem Werkzeug oft Deutsch); in einer Matrix aus zehn Fällen in sieben Sprachen 139 von 140 richtig (vorher 101).
+- Kein doppelter Gruß: Hat das Modell sich schon verabschiedet und legt in derselben Antwort auf, fordert die Integration keine zweite
+  Antwort an.
+- Werkzeuge: `bewohner_rufen` nicht für Sendungen, die in die Paketbox kommen; die Meldung einer abgegebenen Sendung geht auch mit
+  Abschied als Nachricht weiter.
+- Anweisung (`beispiele/anweisung.jinja`): auch Sendungen für den Bewohner kommen in die Paketbox, ohne ihn zu rufen; die Sendungen stehen
+  vor seinen Anliegen; siezen; Regeln nicht aussprechen.
+
+Version 2.3.0:
 
 - Nach dem ersten echten Klingeln: Ein neuer Ruf löst einen alten ab, der hier noch offen war (vorher „besetzt“); Wächter mit einer
   Frist je Zustand; Tagebuch der Rufe, Diagnose, Hinweise unter Reparaturen; nach einer Nachricht Auflegen nach 8 s Stille; Hinweis

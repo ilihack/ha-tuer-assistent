@@ -109,19 +109,20 @@ CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.All(lambda v: v or {}, vol.Schema({
 _LOGGER = logging.getLogger(__name__)
 
 # Name, Beschreibung für das Modell, Textfelder, Ergebnis für das Modell
-WEITER = " Rufe jetzt kein Werkzeug mehr auf, sondern antworte dem Besucher mit dem vorgesehenen Satz."
+WEITER = " Rufe jetzt kein Werkzeug mehr auf, sondern antworte dem Besucher mit dem vorgesehenen Satz, in seiner Sprache."
 WERKZEUGE = (
     ("bewohner_rufen",
-     "Gibt Herrn Muster Bescheid, dass ein Besucher zu ihm möchte. Nur verwenden, wenn das Anliegen des Besuchers Herrn Muster gilt. "
-     "anliegen: in wenigen Worten, wer da ist und was er möchte.",
+     "Gibt Herrn Muster Bescheid, dass jemand zu ihm möchte oder dass etwas für ihn wichtig ist. Nicht für Sendungen, die in die "
+     "Paketbox kommen. anliegen: in wenigen Worten, wer da ist und was er möchte.",
      ("anliegen",), "Herr Muster hat Bescheid bekommen."),
     ("nachricht_weitergeben",
-     "Gibt eine Nachricht des Besuchers an Herrn Muster weiter, auch die Meldung eines Zustellers über eine Sendung für ihn. Nur für "
-     "Herrn Muster, nie für andere Bewohner. fuer: Herr Muster. nachricht: die Nachricht in den Worten des Besuchers.",
+     "Gibt eine Nachricht des Besuchers an Herrn Muster weiter, auch die Meldung eines Zustellers, dass er eine Sendung für ihn "
+     "abgegeben hat, selbst wenn er sich dabei verabschiedet. Nur für Herrn Muster, nie für andere Bewohner. fuer: Herr Muster. "
+     "nachricht: die Nachricht in den Worten des Besuchers.",
      ("fuer", "nachricht"), "Die Nachricht ist weitergegeben."),
     ("auflegen",
-     "Beendet das Gespräch. Nur verwenden, wenn der Besucher sich mit Tschüss, Auf Wiedersehen oder Ähnlichem verabschiedet hat, "
-     "und nie zusammen mit einem anderen Werkzeug.",
+     "Beendet das Gespräch. Nur verwenden, wenn der Besucher sich verabschiedet hat (Tschüss, Auf Wiedersehen oder Ähnliches, in "
+     "jeder Sprache) und nichts an Herrn Muster weiterzugeben ist, und nie zusammen mit einem anderen Werkzeug.",
      (), "Das Gespräch wird gleich beendet."),
 )
 

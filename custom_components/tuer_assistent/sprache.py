@@ -29,7 +29,8 @@ mit Port 0 ab.
 - Nachdenken „high“ (Vorgabe von xAI): Mit „none“ schickte es Zusteller nicht in die Paketbox und wusste die Bewohner nicht, bei
   gleicher Wartezeit bis zum ersten Ton (11.11.2026, r53/gv_proto.py).
 - Werkzeuge: dieselben drei mit denselben Grenzen (`Werkzeug` aus __init__.py). „auflegen“ beendet den Ruf, sobald die Verabschiedung
-  gespielt ist; `tuer_assistent.auflegen` beendet ihn ebenso. Nach „bewohner_rufen“ endet der Ruf ebenso nach der Antwort, damit die
+  gespielt ist; hat das Modell sie in derselben Antwort schon gesprochen, fordert die Brücke keine zweite an (sonst grüßte es doppelt,
+  12.11.2026: in der Simulation bis 22 von 116 Gesprächen); `tuer_assistent.auflegen` beendet ihn ebenso. Nach „bewohner_rufen“ endet der Ruf ebenso nach der Antwort, damit die
   Sprechanlage frei ist und er sich über die App melden kann (Wort des Betreibers vom 11.11.2026 nachts: „solange der Grok damit redet, dann kann
   ich nicht telefonieren … direkt auflegen und sagen, ich hab Bescheid gesagt, der Muster könnte sich jeden Moment mit der Sprechanlage
   verbinden“).
@@ -354,6 +355,8 @@ class Ruf:
         self.offen = 0  # angeforderte Antworten nach einem Werkzeug, die noch nicht begonnen haben
         self.laeuft = False  # eine Antwort von xAI läuft (zwischen response.created und response.done)
         self.nach_werkzeug = False  # nach dem Ende dieser Antwort eine neue anfordern (die Ergebnisse der Werkzeuge sind gesendet)
+        self.ton_in_antwort = False  # diese Antwort hat schon Ton gebracht
+        self.werkzeuge_antwort: list[str] = []  # die Werkzeuge dieser Antwort
         self.unterbrochen = False  # der Besucher hat dazwischengeredet: Ton der abgebrochenen Antwort verwerfen bis zur nächsten
         self.ende_rede: float | None = None
         self.warte_seit: float | None = None  # Ende der Rede, auf das noch keine Antwort begonnen hat
@@ -572,16 +575,21 @@ class Ruf:
                 self.wartezeiten.append(round(self.wartezeit, 1))
                 self.schritt("erster Ton der Antwort nach %.1f s" % self.wartezeit)
             self.ausgang.extend(base64.b64decode(e.get("delta") or ""))
+            self.ton_in_antwort = True
         elif art == "response.created":
             self.offen = max(0, self.offen - 1)
             self.antwort_fertig, self.warte_seit, self.laeuft, self.unterbrochen = False, None, True, False
+            self.ton_in_antwort, self.werkzeuge_antwort = False, []
             self.schritt("Antwort beginnt")
         elif art == "response.done":  # nach Werkzeug-Aufrufen erst jetzt die Folgeantwort anfordern; fertig erst, wenn auch sie durch ist
             self.laeuft = False
             self.schritt("Antwort fertig (%s)" % str((e.get("response") or {}).get("status") or "ohne Angabe")[:20])
             if self.nach_werkzeug:
                 self.nach_werkzeug = False
-                await self._folgeantwort()
+                if self.werkzeuge_antwort == ["auflegen"] and self.ton_in_antwort:  # der Gruß ist schon gesprochen: kein zweiter
+                    self.schritt("Verabschiedung schon gesprochen, keine Folgeantwort")
+                else:
+                    await self._folgeantwort()
             self.antwort_fertig = self.offen == 0
         elif art == "input_audio_buffer.speech_started":  # Dazwischenreden: xAI bricht die Antwort selbst ab, hier nicht mehr spielen
             self.ausgang.clear()
@@ -627,6 +635,7 @@ class Ruf:
                 ausgabe = {"ergebnis": "Das hat gerade nicht geklappt. Bitte den Besucher, selbst an der Wohnung zu klingeln."}
             self.werkzeuge.append(name)
             self.gerufen.append(name)
+            self.werkzeuge_antwort.append(name)
             self.schritt("Werkzeug " + name)
             self.nachricht_durch = name == "nachricht_weitergeben"
             self.protokoll.append({"bewohner_rufen": "(dir Bescheid gegeben)", "nachricht_weitergeben": "(Nachricht an dich weitergegeben)",
