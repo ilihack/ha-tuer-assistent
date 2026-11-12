@@ -113,12 +113,12 @@ WEITER = " Rufe jetzt kein Werkzeug mehr auf, sondern antworte dem Besucher mit 
 WERKZEUGE = (
     ("bewohner_rufen",
      "Gibt Herrn Muster Bescheid, dass jemand zu ihm möchte oder dass etwas für ihn wichtig ist. Nicht für Sendungen, die in die "
-     "Paketbox kommen. anliegen: in wenigen Worten, wer da ist und was er möchte.",
+     "Paketbox kommen. anliegen: auf Deutsch, in wenigen Worten, wer da ist und was er möchte.",
      ("anliegen",), "Herr Muster hat Bescheid bekommen."),
     ("nachricht_weitergeben",
      "Gibt eine Nachricht des Besuchers an Herrn Muster weiter, auch die Meldung eines Zustellers, dass er eine Sendung für ihn "
      "abgegeben hat, selbst wenn er sich dabei verabschiedet. Nur für Herrn Muster, nie für andere Bewohner. fuer: Herr Muster. "
-     "nachricht: die Nachricht in den Worten des Besuchers.",
+     "nachricht: die Nachricht auf Deutsch, sinngetreu in den Worten des Besuchers.",
      ("fuer", "nachricht"), "Die Nachricht ist weitergegeben."),
     ("auflegen",
      "Beendet das Gespräch. Nur verwenden, wenn der Besucher sich verabschiedet hat (Tschüss, Auf Wiedersehen oder Ähnliches, in "

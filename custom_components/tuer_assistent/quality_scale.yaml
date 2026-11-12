@@ -1,9 +1,12 @@
-# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 12.11.2026, Version 2.4.0).
+# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 12.11.2026, Version 2.4.1).
 # Eigene Integrationen bekommen keine Stufe; die Regeln dienen hier als Prüfliste (Wort des Betreibers vom 12.11.2026: „Schau auch, was Home
 # Assistant für Gold-Integration verlangt und was davon sinnvoll für uns ist“; dann: „wenn es nicht komplex ist, können wir die
-# anderen Qualitätsmerkmale integrieren“). Offen ist nur, was eine Einrichtung über die Oberfläche braucht (config-flow und die fünf
-# Regeln, die daran hängen): Das ist eine eigene Entscheidung, weil Schlüssel und Passwort dann nicht mehr in secrets.yaml stehen.
+# anderen Qualitätsmerkmale integrieren“). Offen sind die Testabdeckung und, was eine Einrichtung über die Oberfläche braucht
+# (config-flow und die fünf Regeln, die daran hängen): Das ist eine eigene Entscheidung, weil Schlüssel und Passwort dann nicht mehr in
+# secrets.yaml stehen.
 # status: done = erfüllt, exempt = gilt hier nicht oder ist bewusst nicht gewollt (mit Grund), todo = sinnvoll und offen.
+# Streng gelesen unter Bronze, weil Bronze die Einrichtung über die Oberfläche verlangt (config-flow); ohne diesen Punkt Bronze
+# erfüllt, für Silber fehlt dazu die Testabdeckung, für Gold sonst nur, was am config-flow hängt, für Platin die strenge Typprüfung.
 # Regeln: https://developers.home-assistant.io/docs/core/integration-quality-scale/rules
 rules:
   # --- Bronze ---
@@ -88,8 +91,8 @@ rules:
     status: exempt
     comment: Der Schlüssel steht in secrets.yaml; ein abgelehnter Schlüssel erscheint unter Reparaturen mit dem, was zu tun ist. Käme mit config-flow.
   test-coverage:
-    status: done
-    comment: Die Tests liegen im Prüfstand der Anlage (pruefung/tests/test_grok_voice.py, test_tuer_assistent.py und weitere), mit gestellter Station und gestelltem xAI.
+    status: todo
+    comment: Verlangt sind über 95 % in jedem Modul. Gemessen am 12.11.2026 mit pytest-cov über pruefung/tests/test_grok_voice.py und test_tuer_assistent.py (Prüfstand der Anlage, gestellte Station, gestelltes xAI) 91 % insgesamt; unter 95 % liegen sprache.py 91 %, conversation.py 93 %, tts.py 90 %, stt.py 89 %, select.py 74 % und config_flow.py 0 %.
   # --- Gold ---
   devices:
     status: done

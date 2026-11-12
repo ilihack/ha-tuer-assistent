@@ -204,7 +204,13 @@ Einstellungen unter `grok_voice` in `configuration.yaml`:
 
 ## Stand
 
-Version 2.4.0 (12.11.2026):
+Version 2.4.1 (12.11.2026):
+
+- Was an den Bewohner geht (Anliegen, Nachricht), schreibt dasselbe Modell auf Deutsch, auch wenn der Besucher eine andere Sprache
+  spricht; mit dem Besucher spricht es weiter in dessen Sprache. Ohne zweites Modell; die Mitschrift am Ende bleibt im Original.
+- Qualitätsskala: Testabdeckung gemessen, 91 % (Silber verlangt über 95 % in jedem Modul), darum jetzt „todo“.
+
+Version 2.4.0:
 
 - Jede Sprache wie Deutsch: Das Ergebnis jedes Werkzeugs sagt dem Modell, in der Sprache des Besuchers zu antworten (vorher sprach es
   nach einem Werkzeug oft Deutsch); in einer Matrix aus zehn Fällen in sieben Sprachen 139 von 140 richtig (vorher 101).
@@ -222,10 +228,16 @@ Version 2.3.0:
   „Deutsch“ an die Erkennung; die Anweisung nennt, welcher Briefkasten wem gehört.
 - Warnung unter Reparaturen, dass Mitschriften gespeichert werden, und der Schalter `mitschrift_speichern`.
 - Qualitätsskala als Prüfliste (`custom_components/tuer_assistent/quality_scale.yaml`; eigene Integrationen bekommen keine Stufe):
-  39 von 54 Regeln erfüllt, darunter 16 von 21 der Gold-Stufe. Offen ist, was an einer Einrichtung über die Oberfläche hängt (statt
-  `configuration.yaml`); der Rest gilt hier nicht (Erkennung im Netz, wechselnde Geräte).
+  38 von 54 Regeln erfüllt (Stand 2.4.1), darunter 16 von 21 der Gold-Stufe. Offen sind die Testabdeckung und, was an einer
+  Einrichtung über die Oberfläche hängt (statt `configuration.yaml`); der Rest gilt hier nicht (Erkennung im Netz, wechselnde Geräte).
+  Eine Stufe vergibt Home Assistant nur Integrationen im Kern; streng gelesen läge diese unter Bronze, weil Bronze die Einrichtung über
+  die Oberfläche verlangt.
 - Eigenes Symbol in `brand/` (Home Assistant ab 2026.3).
 - Anweisung: Der Bewohner ist auch über Vornamen und „Familie <Nachname>“ zu finden (Helfer fürs Erdgeschoss mit Vor- und Nachnamen); ob etwas dringend ist, entscheidet das Modell; ausrichten geht immer; „Nachbarn“ sind die anderen Klingeln im Haus.
 
 Geprüft mit gestellter Station und gestelltem xAI, mit dem echten Grok Voice über Proben mit aufgenommenen Sätzen und mit simulierten
 Gesprächen. Die Tests liegen im Projektordner der Anlage, weil sie deren Prüfstand brauchen.
+
+## Lizenz
+
+MIT, siehe `LICENSE`.
