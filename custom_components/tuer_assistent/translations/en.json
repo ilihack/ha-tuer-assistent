@@ -12,6 +12,48 @@
     "station_anmeldung": {
       "title": "Reception: not registered at the door station",
       "description": "The top button of the door station does not work: registering as an indoor station fails ({grund}).\n\nCheck that the door station is running and reachable and that the indoor station password in `secrets.yaml` (`vto_9904_passwort`) matches the one at the station. The integration retries every minute; this notice disappears by itself once it works again."
+    },
+    "mitschriften": {
+      "title": "Reception: transcripts are stored",
+      "description": "The door assistant keeps the last {anzahl} calls in `.storage/tuer_assistent.rufe`, including the transcript of what visitor and reception said. The file is not encrypted and is part of every Home Assistant backup. The transcripts are also contained in the integration's events, which the recorder keeps (10 days by default).\n\nNothing changes if you do nothing. To keep transcripts out of the journal, add `mitschrift_speichern: false` under `tuer_assistent:` → `grok_voice:` in `configuration.yaml` and restart. To keep them out of the recorder, exclude the event types `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` and `tuer_assistent_werkzeug` under `recorder:` → `exclude:` → `event_types:`. You can ignore this notice; it will not come back."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "stoerung": {
+        "name": "Problem"
+      }
+    },
+    "conversation": {
+      "agent": {
+        "name": "Agent"
+      }
+    },
+    "select": {
+      "ki": {
+        "name": "AI agent"
+      }
+    },
+    "stt": {
+      "erkennung": {
+        "name": "Speech recognition"
+      }
+    },
+    "tts": {
+      "stimme": {
+        "name": "Voice"
+      }
+    }
+  },
+  "exceptions": {
+    "auflegen_nicht_moeglich": {
+      "message": "Hanging up is not possible: {grund}"
+    }
+  },
+  "services": {
+    "auflegen": {
+      "name": "End the door assistant's call",
+      "description": "Ends the running call of the door assistant (reception) at the door station. Without a running call nothing happens. The result is shown in tuer_assistent.stand (attribute auflegen)."
     }
   }
 }

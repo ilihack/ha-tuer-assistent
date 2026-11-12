@@ -46,7 +46,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class EmpfangAgent(conversation.ConversationEntity):
-    _attr_name = "Empfang (Grok, mit Ersatzantwort)"
+    _attr_has_entity_name = True
+    _attr_translation_key = "agent"
+    _attr_entity_registry_enabled_default = False  # gehört zum Weg über einen VoIP Stack; für Grok Voice nicht nötig
     _attr_unique_id = f"{DOMAIN}_agent"
     _attr_device_info = GERAET
 

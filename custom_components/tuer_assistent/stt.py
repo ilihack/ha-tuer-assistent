@@ -22,7 +22,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class EmpfangSTT(stt.SpeechToTextEntity):
-    _attr_name = "Empfang (Grok, fängt Unverständliches ab)"
+    _attr_has_entity_name = True
+    _attr_translation_key = "erkennung"
+    _attr_entity_registry_enabled_default = False  # gehört zum Weg über einen VoIP Stack; für Grok Voice nicht nötig
     _attr_unique_id = f"{DOMAIN}_stt"
     _attr_device_info = GERAET
 

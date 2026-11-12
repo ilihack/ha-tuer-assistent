@@ -59,7 +59,10 @@ mit Port 0 ab.
   `.storage/tuer_assistent.rufe` (die letzten RUFE_MERKEN): Beginn, Dauer, Grund des Endes, Ton-Pakete in beide Richtungen, größte
   Lücke im Ton der Station, Wartezeiten bis zum ersten Ton, Werkzeuge, der Ablauf mit Zeiten (SIP, Erkennung, Antworten von xAI) und
   die Mitschrift. Im Log von Home Assistant steht je Ruf eine Zeile mit den Zahlen, nie mit dem, was der Besucher sagt. Die
-  Diagnose (diagnostics.py) gibt das Tagebuch ohne Mitschrift heraus.
+  Diagnose (diagnostics.py) gibt das Tagebuch ohne Mitschrift heraus. Dass Mitschriften gespeichert werden, sagt ein Hinweis unter
+  Einstellungen → Reparaturen (Wort des Betreibers vom 12.11.2026: „Speichern der Mitschriften ist okay, aber die Integration müsste
+  warnen“); ignoriert, kommt er nicht wieder. Mit `mitschrift_speichern: false` bleibt die Mitschrift aus dem Tagebuch, auch aus
+  den schon gespeicherten Rufen, und der Hinweis entfällt.
 - Reparaturen: Ist der xAI-Schlüssel abgelehnt oder gesperrt oder die Anmeldung an der Station seit MELDEN_NACH s verloren, steht es
   zusätzlich unter Einstellungen → Reparaturen und verschwindet dort von selbst.
 """
@@ -742,9 +745,9 @@ class Bruecke(asyncio.DatagramProtocol):
     """Die Innenstation 9904: Anmeldung an der Station, Rufe von ihr, Gespräch mit xAI."""
 
     def __init__(self, hass: HomeAssistant, *, schluessel: str, station: str, kennung: str, passwort: str, port: int = 5062,
-                 station_port: int = 5060, stimme: str = "eve") -> None:
+                 station_port: int = 5060, stimme: str = "eve", mitschrift_speichern: bool = True) -> None:
         self.hass, self.schluessel, self.station, self.kennung, self.passwort = hass, schluessel, station, kennung, passwort
-        self.port, self.station_port, self.stimme = port, station_port, stimme
+        self.port, self.station_port, self.stimme, self.mitschrift_speichern = port, station_port, stimme, mitschrift_speichern
         self.lokal = "0.0.0.0"
         self.transport = None
         self.ruf: Ruf | None = None
@@ -766,6 +769,8 @@ class Bruecke(asyncio.DatagramProtocol):
     # --- Tagebuch -----------------------------------------------------------------------------------------------------------
     def merken(self, eintrag: dict) -> None:
         """Ein Ruf ins Tagebuch (die letzten RUFE_MERKEN) und sein Ergebnis in tuer_assistent.stand."""
+        if not self.mitschrift_speichern:
+            eintrag = {k: v for k, v in eintrag.items() if k != "mitschrift"}
         self.rufe.append(eintrag)
         del self.rufe[:-RUFE_MERKEN]
         if self.speicher is not None:
@@ -1084,7 +1089,8 @@ async def async_starten(hass: HomeAssistant, einstellungen: dict) -> Bruecke | N
         return None
     bruecke = Bruecke(hass, schluessel=werte["schluessel"], station=station, kennung=werte["kennung"] or "9904",
                       passwort=werte["passwort"], port=int(einstellungen.get("port") or 5062),
-                      station_port=int(einstellungen.get("station_port") or 5060), stimme=werte["stimme"] or "eve")
+                      station_port=int(einstellungen.get("station_port") or 5060), stimme=werte["stimme"] or "eve",
+                      mitschrift_speichern=bool(einstellungen.get("mitschrift_speichern", True)))
     try:
         await asyncio.get_running_loop().create_datagram_endpoint(lambda: bruecke, local_addr=("0.0.0.0", bruecke.port))
     except OSError as err:
@@ -1095,6 +1101,14 @@ async def async_starten(hass: HomeAssistant, einstellungen: dict) -> Bruecke | N
         bruecke.rufe = list((await bruecke.speicher.async_load() or {}).get("rufe") or [])[-RUFE_MERKEN:]
     except Exception:  # noqa: BLE001  ohne altes Tagebuch beginnt ein neues
         _LOGGER.warning("Grok Voice: Tagebuch der Rufe nicht lesbar, es beginnt neu", exc_info=True)
+    if bruecke.mitschrift_speichern:  # Hinweis unter Reparaturen; ignoriert er ihn, bleibt er ignoriert (auch nach Neustarts)
+        ir.async_create_issue(hass, DOMAIN, "mitschriften", is_fixable=False, severity=ir.IssueSeverity.WARNING,
+                              translation_key="mitschriften", translation_placeholders={"anzahl": str(RUFE_MERKEN)})
+    else:
+        ir.async_delete_issue(hass, DOMAIN, "mitschriften")
+        if any("mitschrift" in r for r in bruecke.rufe):
+            bruecke.rufe = [{k: v for k, v in r.items() if k != "mitschrift"} for r in bruecke.rufe]
+            bruecke.speicher.async_delay_save(lambda: {"rufe": bruecke.rufe}, 0)
     bruecke.anmeldung = hass.async_create_background_task(bruecke.anmelden_dauernd(), "tuer_assistent Anmeldung")
     bruecke.pruefung = hass.async_create_background_task(bruecke.schluessel_dauernd(), "tuer_assistent Schlüssel")
     _LOGGER.info("Grok Voice: Innenstation %s auf Port %s", bruecke.kennung, bruecke.port)

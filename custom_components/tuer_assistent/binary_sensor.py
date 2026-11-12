@@ -22,12 +22,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class EmpfangStoerung(BinarySensorEntity):
-    _attr_name = "Empfang Störung"
+    _attr_has_entity_name = True
+    _attr_translation_key = "stoerung"  # Name „Störung“ aus translations/, Symbol aus icons.json
     _attr_unique_id = f"{DOMAIN}_stoerung"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_device_info = GERAET
-    _attr_icon = "mdi:account-voice-off"
     _attr_should_poll = True
 
     def __init__(self) -> None:

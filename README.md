@@ -86,16 +86,17 @@ xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche
 | Was | Name | Wozu |
 |---|---|---|
 | Zustand | `tuer_assistent.stand` | Anmeldung, xAI, letztes Werkzeug, letzter Ruf mit Grund des Endes |
-| Sensor (Diagnose) | `binary_sensor.empfang_stoerung` | an, wenn der Knopf nicht gehen würde; Attribut `grund` |
-| Auswahl (Einstellung) | `select.empfang_ki` | von welchem Agenten Grok Voice die Anweisung nimmt |
+| Sensor „Empfang Störung“ (Diagnose) | `binary_sensor.empfang_stoerung` | an, wenn der Knopf nicht gehen würde; Attribut `grund` |
+| Auswahl „Empfang KI“ (Einstellung) | `select.empfang_ki` | von welchem Agenten Grok Voice die Anweisung nimmt |
+| Erkennung, Stimme, Agent | `stt.empfang`, `tts.empfang`, `conversation.empfang` | nur für den Weg über einen VoIP Stack; bei neuen Einrichtungen aus |
 | Dienst | `tuer_assistent.auflegen` | beendet das laufende Gespräch |
 | Ereignis | `tuer_assistent_grok_voice` | `klingel`, `angenommen`, `abgelehnt`, `ende` (mit Mitschrift und Grund) |
 | Ereignis | `tuer_assistent_werkzeug` | ein Werkzeug der KI wurde gerufen |
 | Ereignis | `tuer_assistent_gespraech` | Beginn und Ende einer Störung (Feld `ersatz`) |
-| Reparaturen | Einstellungen → Reparaturen | Schlüssel abgelehnt oder gesperrt; Anmeldung an der Station verloren |
+| Reparaturen | Einstellungen → Reparaturen | Schlüssel abgelehnt oder gesperrt; Anmeldung an der Station verloren; Warnung, dass Mitschriften gespeichert werden |
 | Diagnose | am Eintrag der Integration | Zustand und Tagebuch der Rufe, ohne Schlüssel, Adresse, Namen und Mitschrift |
 
-Alle Entitäten hängen an einem Gerät „Empfang“.
+Alle Entitäten hängen an einem Gerät „Empfang“; Namen und Symbole kommen aus `translations/` und `icons.json` (deutsch und englisch).
 
 ## Woher die Daten kommen
 
@@ -145,6 +146,7 @@ Einstellungen unter `grok_voice` in `configuration.yaml`:
 | `port` | 5062 | eigener SIP-Port (UDP), den die Station erreichen muss |
 | `station_port` | 5060 | SIP-Port der Station |
 | `stimme` | eve | Stimme von Grok Voice |
+| `mitschrift_speichern` | true | Mitschriften im Tagebuch; `false` hält sie heraus, auch aus den schon gespeicherten Rufen |
 
 ## Fehlersuche
 
@@ -171,7 +173,8 @@ Einstellungen unter `grok_voice` in `configuration.yaml`:
 - Ein Gespräch zur Zeit, höchstens 3 min; die Dahua-Station beendet von sich aus nach 2 min.
 - Die KI kann sich verhören, besonders bei Namen; die Anweisung lässt sie nachfragen. Was sie sagt, regelt die Anweisung, nicht der Code.
 - Einrichtung nur über `configuration.yaml`, keine Maske; eine Änderung braucht einen Neustart.
-- Die Mitschriften der letzten 30 Rufe liegen unverschlüsselt in `.storage` und damit in jeder Sicherung von Home Assistant.
+- Die Werkzeug-Beschreibungen in `__init__.py` nennen den Bewohner („Herrn Muster“); für eine andere Wohnung dort anpassen.
+- Die Anweisung und die Beispiele sind deutsch und auf ein Haus mit drei Wohnungen zugeschnitten.
 
 ## Entfernen
 
@@ -186,22 +189,31 @@ Einstellungen unter `grok_voice` in `configuration.yaml`:
 - xAI rechnet laut eigener Preisliste 5 Cent je Minute Gespräch ab. Ein Klingeln kostet damit höchstens rund 15 Cent. Im xAI-Konto ein
   Ausgabenlimit setzen.
 - Schlüssel, Adresse der Station und Passwort gehören nur in `secrets.yaml`.
+- Mitschriften: Das Tagebuch hält die letzten 30 Gespräche mit Text fest, unverschlüsselt in `.storage` und damit in jeder Sicherung.
+  Dieselben Texte stehen in den Ereignissen der Integration, die der Recorder aufhebt (standardmäßig 10 Tage). Die Integration sagt
+  das unter Reparaturen. Abschalten: `mitschrift_speichern: false`; aus dem Recorder heraus mit
+  ```yaml
+  recorder:
+    exclude:
+      event_types: [tuer_assistent_grok_voice, tuer_assistent_gespraech, tuer_assistent_werkzeug]
+  ```
+  Die Automationen bekommen die Ereignisse trotzdem.
 - Die KI öffnet nichts. Ob der Bewohner da ist, sagt sie nur, wenn er weg ist: Dann bietet sie an, eine Nachricht weiterzugeben oder,
   wenn es dringend ist, sein Handy klingeln zu lassen. Für die Mieter nimmt sie nichts an und gibt nichts weiter. Das regelt die
   Anweisung; die harten Grenzen setzen die Werkzeuge.
 
 ## Stand
 
-Version 2.2.0 (12.11.2026), nach dem ersten echten Klingeln:
+Version 2.3.0 (12.11.2026):
 
-- Ein Ruf blieb hier offen, nachdem die Station ihn beendet hatte, und jedes neue Klingeln bekam „besetzt“. Jetzt löst ein neuer Ruf den
-  alten ab, und ohne Ton der Station endet ein Ruf nach 8 s (wenn sie ohne Pause sendet).
-- Tagebuch der Rufe, Diagnose, Hinweise unter Reparaturen, ein Gerät für alle Entitäten.
-- Nach einer Nachricht legt die Integration nach 8 s Stille auf statt die Automation blind nach 25 s.
-- Die Erkennung bekommt den Hinweis „Deutsch“; andere Sprachen gehen weiter.
-- Die Anweisung nennt, welcher Briefkasten wem gehört, und dass man die Klappe der Paketbox aufziehen muss.
+- Nach dem ersten echten Klingeln: Ein neuer Ruf löst einen alten ab, der hier noch offen war (vorher „besetzt“); Wächter mit einer
+  Frist je Zustand; Tagebuch der Rufe, Diagnose, Hinweise unter Reparaturen; nach einer Nachricht Auflegen nach 8 s Stille; Hinweis
+  „Deutsch“ an die Erkennung; die Anweisung nennt, welcher Briefkasten wem gehört.
+- Warnung unter Reparaturen, dass Mitschriften gespeichert werden, und der Schalter `mitschrift_speichern`.
+- Qualitätsskala als Prüfliste (`custom_components/tuer_assistent/quality_scale.yaml`; eigene Integrationen bekommen keine Stufe):
+  39 von 54 Regeln erfüllt, darunter 16 von 21 der Gold-Stufe. Offen ist, was an einer Einrichtung über die Oberfläche hängt (statt
+  `configuration.yaml`); der Rest gilt hier nicht (Erkennung im Netz, wechselnde Geräte).
+- Eigenes Symbol in `brand/` (Home Assistant ab 2026.3).
 
-Was von der Qualitätsskala von Home Assistant hier gilt, steht in `custom_components/tuer_assistent/quality_scale.yaml` (eigene
-Integrationen bekommen keine Stufe; die Regeln dienen als Prüfliste). Geprüft mit gestellter Station und gestelltem xAI, mit dem echten
-Grok Voice über Proben mit aufgenommenen Sätzen und mit simulierten Gesprächen. Die Tests liegen im Projektordner der Anlage, weil sie
-deren Prüfstand brauchen.
+Geprüft mit gestellter Station und gestelltem xAI, mit dem echten Grok Voice über Proben mit aufgenommenen Sätzen und mit simulierten
+Gesprächen. Die Tests liegen im Projektordner der Anlage, weil sie deren Prüfstand brauchen.

@@ -15,9 +15,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class EmpfangWahl(SelectEntity, RestoreEntity):
-    _attr_name = "Empfang KI"
+    _attr_has_entity_name = True
+    _attr_translation_key = "ki"
     _attr_unique_id = f"{DOMAIN}_ki"
-    _attr_icon = "mdi:account-voice"
     _attr_entity_category = EntityCategory.CONFIG
     _attr_device_info = GERAET
     _attr_should_poll = False

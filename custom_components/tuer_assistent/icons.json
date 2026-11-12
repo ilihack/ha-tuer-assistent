@@ -1,0 +1,34 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "stoerung": {
+        "default": "mdi:account-voice-off"
+      }
+    },
+    "conversation": {
+      "agent": {
+        "default": "mdi:doorbell-video"
+      }
+    },
+    "select": {
+      "ki": {
+        "default": "mdi:account-voice"
+      }
+    },
+    "stt": {
+      "erkennung": {
+        "default": "mdi:ear-hearing"
+      }
+    },
+    "tts": {
+      "stimme": {
+        "default": "mdi:account-voice"
+      }
+    }
+  },
+  "services": {
+    "auflegen": {
+      "service": "mdi:phone-hangup"
+    }
+  }
+}

@@ -12,6 +12,48 @@
     "station_anmeldung": {
       "title": "Empfang: an der Türstation nicht angemeldet",
       "description": "Der oberste Knopf der Sprechanlage geht nicht: Die Anmeldung als Innenstation scheitert ({grund}).\n\nPrüfen, ob die Türstation läuft und erreichbar ist und ob das Passwort der Innenstation in `secrets.yaml` (`vto_9904_passwort`) zu dem an der Station passt. Die Integration versucht es jede Minute neu; der Hinweis verschwindet von selbst, sobald es wieder geht."
+    },
+    "mitschriften": {
+      "title": "Empfang: Mitschriften werden gespeichert",
+      "description": "Der Tür-Assistent hält die letzten {anzahl} Rufe in `.storage/tuer_assistent.rufe` fest, mit Mitschrift: was Besucher und Empfang gesagt haben. Die Datei ist unverschlüsselt und steckt in jeder Sicherung von Home Assistant. Die Mitschriften stehen außerdem in den Ereignissen der Integration, die die Ereignis-Datenbank (Recorder) aufhebt, standardmäßig 10 Tage.\n\nSo bleibt es, wenn du nichts tust. Ohne Mitschrift im Tagebuch: in `configuration.yaml` unter `tuer_assistent:` → `grok_voice:` die Zeile `mitschrift_speichern: false` und neu starten. Aus der Ereignis-Datenbank hält sie `recorder:` → `exclude:` → `event_types:` mit `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` und `tuer_assistent_werkzeug` heraus. Diesen Hinweis kannst du ignorieren; er kommt dann nicht wieder."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "stoerung": {
+        "name": "Störung"
+      }
+    },
+    "conversation": {
+      "agent": {
+        "name": "Agent"
+      }
+    },
+    "select": {
+      "ki": {
+        "name": "KI"
+      }
+    },
+    "stt": {
+      "erkennung": {
+        "name": "Erkennung"
+      }
+    },
+    "tts": {
+      "stimme": {
+        "name": "Stimme"
+      }
+    }
+  },
+  "exceptions": {
+    "auflegen_nicht_moeglich": {
+      "message": "Auflegen ist nicht möglich: {grund}"
+    }
+  },
+  "services": {
+    "auflegen": {
+      "name": "Gespräch des Tür-Assistenten beenden",
+      "description": "Beendet das laufende Gespräch des Tür-Assistenten („Empfang“) an der Sprechanlage. Ohne laufendes Gespräch geschieht nichts. Das Ergebnis steht in tuer_assistent.stand (Attribut auflegen)."
     }
   }
 }

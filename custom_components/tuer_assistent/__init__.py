@@ -50,7 +50,8 @@ Grok Voice (Sprache zu Sprache, `sprache.py`; seit 11.11.2026): Steht in configu
         station: !secret vto_eg_adresse
         passwort: !secret vto_9904_passwort
 meldet sich die Integration selbst als Innenstation 9904 an der Station EG an (kennung, port 5062, station_port 5060 und stimme eve
-wählbar) und nimmt deren Rufe an; einen Ersatzweg gibt es nicht (sein Wort vom 11.11.2026 abends: „wenn es kaputt geht, dann bleibt es
+wählbar; `mitschrift_speichern: false` hält die Mitschriften aus dem Tagebuch heraus) und nimmt deren Rufe an; einen Ersatzweg gibt
+es nicht (sein Wort vom 11.11.2026 abends: „wenn es kaputt geht, dann bleibt es
 halt kaputt“). `tuer_assistent.auflegen` beendet auch dieses Gespräch.
 Nachsehen: `tuer_assistent.stand` (Anmeldung, xAI, letzter Ruf), der Sensor „Empfang Störung“, Einstellungen → Reparaturen (Schlüssel,
 Anmeldung), das Tagebuch der letzten Rufe in `.storage/tuer_assistent.rufe` und die Diagnose am Eintrag (`diagnostics.py`, ohne
@@ -70,6 +71,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.typing import ConfigType
@@ -101,7 +103,8 @@ CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.All(lambda v: v or {}, vol.Schema({
     vol.Optional("grok_voice"): vol.Schema({vol.Required("schluessel"): cv.string, vol.Required("station"): cv.string,
                                             vol.Required("passwort"): cv.string, vol.Optional("kennung", default="9904"): cv.string,
                                             vol.Optional("port", default=5062): cv.port, vol.Optional("station_port", default=5060): cv.port,
-                                            vol.Optional("stimme", default="eve"): cv.string}),
+                                            vol.Optional("stimme", default="eve"): cv.string,
+                                            vol.Optional("mitschrift_speichern", default=True): cv.boolean}),
 }))}, extra=vol.ALLOW_EXTRA)
 _LOGGER = logging.getLogger(__name__)
 
@@ -232,9 +235,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.data.setdefault(DOMAIN, {"letzte": {}, "zeiten": []})["agenten"] = dict((config.get(DOMAIN) or {}).get("agenten") or {KI_QUELLE: ZEIT})
 
     async def dienst(call: ServiceCall) -> None:
+        """Ohne Gespräch geschieht nichts; nur wenn Auflegen gar nicht geht, ein Fehler (die Automation ruft mit continue_on_error)."""
         ergebnis = auflegen(hass)
         _stand(hass, auflegen=ergebnis)
         _LOGGER.log(logging.WARNING if ergebnis.startswith("nicht") else logging.INFO, "Auflegen: %s", ergebnis)
+        if ergebnis.startswith("nicht"):
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key="auflegen_nicht_moeglich",
+                                     translation_placeholders={"grund": ergebnis.removeprefix("nicht möglich: ")})
 
     hass.services.async_register(DOMAIN, "auflegen", dienst, schema=vol.Schema({}))
 
