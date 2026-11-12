@@ -11,7 +11,7 @@ import logging
 
 from homeassistant.components import stt
 
-from . import DOMAIN, STT_QUELLE, UNVERSTAENDLICH
+from . import DOMAIN, GERAET, STT_QUELLE, UNVERSTAENDLICH
 
 _LOGGER = logging.getLogger(__name__)
 ZEIT = 40  # s; der Ton eines Satzes läuft bis zu 15 s ein, dazu die Erkennung
@@ -24,6 +24,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class EmpfangSTT(stt.SpeechToTextEntity):
     _attr_name = "Empfang (Grok, fängt Unverständliches ab)"
     _attr_unique_id = f"{DOMAIN}_stt"
+    _attr_device_info = GERAET
 
     def __init__(self) -> None:
         self.entity_id = "stt.empfang"

@@ -9,10 +9,12 @@ from __future__ import annotations
 from datetime import timedelta
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
+from homeassistant.const import EntityCategory
 
-from . import DOMAIN
+from . import DOMAIN, GERAET
 
 SCAN_INTERVAL = timedelta(seconds=30)
+PARALLEL_UPDATES = 0  # liest nur den eigenen Zustand, keine Anfrage an ein Gerät
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -23,6 +25,8 @@ class EmpfangStoerung(BinarySensorEntity):
     _attr_name = "Empfang Störung"
     _attr_unique_id = f"{DOMAIN}_stoerung"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_info = GERAET
     _attr_icon = "mdi:account-voice-off"
     _attr_should_poll = True
 

@@ -15,7 +15,7 @@ import logging
 from homeassistant.components.tts import TextToSpeechEntity
 from homeassistant.components.tts.const import DATA_COMPONENT
 
-from . import DOMAIN, TTS_ERSATZ, TTS_QUELLE, TTS_STIMME
+from . import DOMAIN, GERAET, TTS_ERSATZ, TTS_QUELLE, TTS_STIMME
 
 _LOGGER = logging.getLogger(__name__)
 ZEIT = 6  # s bis zum Ersatz durch Katja
@@ -28,6 +28,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class EmpfangTTS(TextToSpeechEntity):
     _attr_name = "Empfang (Grok, Sprache automatisch)"
     _attr_unique_id = f"{DOMAIN}_tts"
+    _attr_device_info = GERAET
     _attr_supported_languages = ["de-DE", "en-US", "en-GB"]
     _attr_default_language = "de-DE"
     _attr_supported_options: list[str] = []

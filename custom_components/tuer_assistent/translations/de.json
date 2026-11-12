@@ -1,0 +1,17 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Den Tür-Assistenten gibt es nur einmal. Er entsteht aus der Zeile „tuer_assistent:“ in configuration.yaml."
+    }
+  },
+  "issues": {
+    "xai_schluessel": {
+      "title": "Empfang: xAI-Schlüssel {grund}",
+      "description": "Der oberste Knopf der Sprechanlage geht nicht: xAI nimmt den Schlüssel nicht an ({grund}).\n\nIm xAI-Konto prüfen, ob der Schlüssel noch gilt und das Guthaben reicht. Einen neuen Schlüssel in `secrets.yaml` unter `xai_api_key` eintragen und Home Assistant neu starten. Der Hinweis verschwindet von selbst, sobald die stündliche Prüfung wieder gelingt."
+    },
+    "station_anmeldung": {
+      "title": "Empfang: an der Türstation nicht angemeldet",
+      "description": "Der oberste Knopf der Sprechanlage geht nicht: Die Anmeldung als Innenstation scheitert ({grund}).\n\nPrüfen, ob die Türstation läuft und erreichbar ist und ob das Passwort der Innenstation in `secrets.yaml` (`vto_9904_passwort`) zu dem an der Station passt. Die Integration versucht es jede Minute neu; der Hinweis verschwindet von selbst, sobald es wieder geht."
+    }
+  }
+}

@@ -4,6 +4,21 @@ Ein Klingelknopf an einer Dahua-Türstation, hinter dem eine KI antwortet: Sie f
 Besuchern, wo sie klingeln müssen, gibt dem Bewohner Bescheid, nimmt Nachrichten an und legt nach der Verabschiedung auf. Im Haus kann sie
 nichts schalten.
 
+## Wofür
+
+- **Zusteller:** in die Paketbox, an die richtige Klingel oder, ohne Unterschrift, vor die Haustür, ohne dass jemand im Haus gestört wird.
+- **Besucher:** finden den richtigen Knopf; will jemand zum Bewohner, bekommt der eine Meldung aufs Handy.
+- **Nachrichten:** Ein Besucher hinterlässt etwas für den Bewohner; es kommt als Meldung, dazu am Ende das ganze Gespräch als Text.
+- **Abwesenheit:** Ist niemand da, sagt die KI das für den Bewohner (nicht für Mieter) und ruft ihn nur bei Dringendem.
+
+## Unterstützte Geräte
+
+- Getestet mit einer Dahua-Türstation (VTO mit vier Klingelknöpfen), die selbst SIP-Server ihrer Innenstationen ist. Jede Station, die
+  eine Innenstation per SIP mit Digest anmelden lässt und G.711 (A-law oder µ-law, 8 kHz) anbietet, sollte gehen.
+- Nicht unterstützt: Stationen, die nur über einen fremden SIP-Server oder nur mit anderen Codecs (Opus, G.722) sprechen; Video wird
+  abgelehnt.
+- Die KI ist Grok Voice von xAI (Echtzeit-Schnittstelle); ein xAI-Schlüssel mit Guthaben ist nötig.
+
 ## So funktioniert es
 
 ```
@@ -12,7 +27,7 @@ Besucher drückt den Knopf
   → diese Integration ist als 9904 angemeldet (REGISTER mit Digest) und nimmt den Ruf an
       ├─ feuert sofort tuer_assistent_grok_voice {"ergebnis": "klingel"}
       ├─ verbindet sich mit der Echtzeit-Schnittstelle von xAI (Grok Voice: Erkennung, KI und Stimme in einem Schritt)
-      │    Ton G.711 (A-law/µ-law, 8 kHz) unverändert in beide Richtungen, Paketlänge wie die Station (40 ms)
+      │    Ton G.711 (A-law/µ-law, 8 kHz) unverändert in beide Richtungen, Paketlänge wie von der Station angeboten
       │    drei Werkzeuge → Ereignis tuer_assistent_werkzeug → Automation: Handy klingeln lassen, Nachricht weitergeben, auflegen
       └─ am Ende: tuer_assistent_grok_voice {"ergebnis": "ende", "mitschrift", "grund", "sekunden", "angenommen"}
            → Automation: eine Meldung aufs Handy mit dem ganzen Gespräch, wenn es den Bewohner betrifft oder gestört war
@@ -30,8 +45,18 @@ Besucher drückt den Knopf
   Der Grund steht im Attribut `grund`. Beginn und Ende einer Störung melden sich je einmal. Eine Plakette auf dem Dashboard hängt man
   an diesen Sensor.
 - **Vollduplex:** Wer dazwischenredet, bricht die Antwort ab. Die Begrüßung spielt xAI aber immer ganz.
-- **Wächter:** Antwortet xAI 10 s nicht, wird aufgelegt und gemeldet. Bei 30 s Stille wird aufgelegt. Ein Ruf dauert höchstens 3 min,
-  und es läuft immer nur ein Ruf.
+- **Wächter:** Jeder Zustand eines Rufs hat eine Frist, nach der aufgelegt wird:
+  - 8 s kein Ton-Paket der Station (sie hat aufgelegt, ohne es zu sagen); nur, wenn die Station in den ersten 3 s ohne Pause
+    gesendet hat, sonst endete bei einer Station mit Stille-Unterdrückung jedes Gespräch, sobald der Besucher schweigt
+  - 10 s weder Ereignis noch Ton von xAI, obwohl xAI dran ist (wird gemeldet)
+  - 60 s „Rede“ des Besuchers ohne erkanntes Ende (Lärm)
+  - 20 s Stille; nach einer weitergegebenen Nachricht 8 s
+  - 3 min Höchstdauer
+- **Ein Ruf zur Zeit:** Ruft die Station neu an, ist der alte Ruf für sie vorbei; er wird beendet und der neue angenommen. Ein „besetzt“
+  gibt es nicht.
+- **Tagebuch:** Die letzten 30 Rufe stehen in `.storage/tuer_assistent.rufe`: Beginn, Dauer, Grund des Endes, Ton-Pakete, Wartezeiten,
+  Werkzeuge, der Ablauf mit Zeiten und die Mitschrift. Im Log von Home Assistant steht je Ruf eine Zeile mit den Zahlen, nie mit dem,
+  was der Besucher sagt.
 - **Anmeldung:** Die Station gewährt 60 s; die Integration meldet sich nach 80 % davon erneut an. Nach einem Fehler versucht sie es nach
   5, 10, 20, 40 und dann alle 60 s wieder. Ist sie 3 min lang nicht angemeldet, kommt einmal eine Meldung und wieder eine, sobald es geht.
   Beim Anhalten meldet sie sich ab.
@@ -46,7 +71,7 @@ Daneben enthält die Integration die Bausteine für einen Text-Agenten hinter de
 | Werkzeug | Felder | Was passiert |
 |---|---|---|
 | `bewohner_rufen` | anliegen | Ereignis; die Automation lässt das Handy klingeln; danach legt die Integration auf (Station frei für die App) |
-| `nachricht_weitergeben` | fuer, nachricht | Ereignis; die Automation schickt den Text aufs Handy (nur für den Bewohner, nie für Mieter) |
+| `nachricht_weitergeben` | fuer, nachricht | Ereignis; die Automation schickt den Text aufs Handy (nur für den Bewohner, nie für Mieter); nach 8 s Stille legt die Integration auf |
 | `auflegen` | – | Ruf endet, sobald die Verabschiedung gespielt ist |
 
 Die Werkzeuge rufen keinen Dienst und lesen keinen Zustand. Grenzen, die nicht vom Modell abhängen:
@@ -55,6 +80,29 @@ Die Werkzeuge rufen keinen Dienst und lesen keinen Zustand. Grenzen, die nicht v
 - derselbe Aufruf mit denselben Feldern feuert binnen 20 s nur einmal ein Ereignis
 
 xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche, MCP).
+
+## Was die Integration bereitstellt
+
+| Was | Name | Wozu |
+|---|---|---|
+| Zustand | `tuer_assistent.stand` | Anmeldung, xAI, letztes Werkzeug, letzter Ruf mit Grund des Endes |
+| Sensor (Diagnose) | `binary_sensor.empfang_stoerung` | an, wenn der Knopf nicht gehen würde; Attribut `grund` |
+| Auswahl (Einstellung) | `select.empfang_ki` | von welchem Agenten Grok Voice die Anweisung nimmt |
+| Dienst | `tuer_assistent.auflegen` | beendet das laufende Gespräch |
+| Ereignis | `tuer_assistent_grok_voice` | `klingel`, `angenommen`, `abgelehnt`, `ende` (mit Mitschrift und Grund) |
+| Ereignis | `tuer_assistent_werkzeug` | ein Werkzeug der KI wurde gerufen |
+| Ereignis | `tuer_assistent_gespraech` | Beginn und Ende einer Störung (Feld `ersatz`) |
+| Reparaturen | Einstellungen → Reparaturen | Schlüssel abgelehnt oder gesperrt; Anmeldung an der Station verloren |
+| Diagnose | am Eintrag der Integration | Zustand und Tagebuch der Rufe, ohne Schlüssel, Adresse, Namen und Mitschrift |
+
+Alle Entitäten hängen an einem Gerät „Empfang“.
+
+## Woher die Daten kommen
+
+- Rufe schiebt die Station selbst herein (SIP über UDP im Hausnetz); die Integration fragt dafür nichts ab.
+- Die Anmeldung an der Station erneuert sie nach 80 % der gewährten Zeit.
+- Den xAI-Schlüssel prüft sie beim Start und stündlich.
+- Der Sensor „Empfang Störung“ liest alle 30 s nur den eigenen Zustand.
 
 ## Einrichten
 
@@ -86,6 +134,53 @@ xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche
 6. Neu starten. `tuer_assistent.stand` zeigt im Attribut `grok_voice` den Wert „angemeldet als 9904“ und im Attribut `xai` den Wert
    „ok“; `binary_sensor.empfang_stoerung` steht auf aus.
 
+Einstellungen unter `grok_voice` in `configuration.yaml`:
+
+| Name | Vorgabe | Bedeutung |
+|---|---|---|
+| `schluessel` | – | xAI-Schlüssel |
+| `station` | – | Adresse der Türstation |
+| `passwort` | – | Passwort der Innenstation an der Station |
+| `kennung` | 9904 | Nummer der Innenstation |
+| `port` | 5062 | eigener SIP-Port (UDP), den die Station erreichen muss |
+| `station_port` | 5060 | SIP-Port der Station |
+| `stimme` | eve | Stimme von Grok Voice |
+
+## Fehlersuche
+
+1. `tuer_assistent.stand` ansehen: `grok_voice` („angemeldet als …“), `xai` („ok“), `letzter_ruf` (Zeit, Dauer, Grund des Endes).
+2. Einstellungen → Reparaturen: Dort steht, wenn der Schlüssel abgelehnt ist oder die Anmeldung scheitert, und was zu tun ist.
+3. Das Tagebuch `.storage/tuer_assistent.rufe` oder die Diagnose am Eintrag: je Ruf der Ablauf mit Zeiten. Typische Gründe des Endes:
+
+| Grund | Bedeutung |
+|---|---|
+| aufgelegt nach Verabschiedung / nach dem Bescheid | normales Ende |
+| Station hat aufgelegt | die Station hat das Gespräch beendet (bei Dahua nach 2 min) |
+| Station sendet keinen Ton mehr | die Station hat beendet, ohne es zu sagen, oder das Netz ist weg |
+| vom nächsten Klingeln abgelöst | die Station rief neu an, während der alte Ruf hier noch offen war |
+| xAI antwortet nicht | xAI hängt; die Meldung am Ende nennt es als Störung |
+| nicht angenommen: … | keine Verbindung zu xAI in 5 s, Schlüssel abgelehnt, oder kein G.711 im Angebot |
+| 20 s Stille / 8 s Stille nach der Nachricht | niemand spricht mehr |
+
+4. Bleibt der Knopf stumm und im Log steht nichts von „Grok Voice“: Der Abschnitt `grok_voice` fehlt oder ist unvollständig, oder der
+   Port ist belegt (Warnung beim Start).
+
+## Bekannte Grenzen
+
+- Kein Ersatzweg: Ohne Internet oder ohne xAI bleibt der Knopf stumm (die Meldung am Ende und der Sensor sagen es).
+- Ein Gespräch zur Zeit, höchstens 3 min; die Dahua-Station beendet von sich aus nach 2 min.
+- Die KI kann sich verhören, besonders bei Namen; die Anweisung lässt sie nachfragen. Was sie sagt, regelt die Anweisung, nicht der Code.
+- Einrichtung nur über `configuration.yaml`, keine Maske; eine Änderung braucht einen Neustart.
+- Die Mitschriften der letzten 30 Rufe liegen unverschlüsselt in `.storage` und damit in jeder Sicherung von Home Assistant.
+
+## Entfernen
+
+1. Die Automationen aus `beispiele/` löschen.
+2. In `configuration.yaml` den Abschnitt `tuer_assistent:` entfernen und neu starten.
+3. Den Eintrag „Tür-Assistent“ unter Geräte & Dienste löschen, den Ordner `custom_components/tuer_assistent` und die Datei
+   `.storage/tuer_assistent.rufe` entfernen.
+4. An der Türstation die Innenstation 9904 löschen oder dem Knopf wieder eine andere Nummer geben.
+
 ## Kosten und Schutz
 
 - xAI rechnet laut eigener Preisliste 5 Cent je Minute Gespräch ab. Ein Klingeln kostet damit höchstens rund 15 Cent. Im xAI-Konto ein
@@ -97,10 +192,16 @@ xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche
 
 ## Stand
 
-Version 2.1.2 (11.11.2026): die Integration ist eigene Innenstation, kein VoIP Stack nötig. Nach einem Ruf kommt eine Meldung mit der
-Mitschrift, wenn er den Bewohner betrifft; Schlüssel und Anmeldung werden überwacht. Die Anweisung folgt dem Leitfaden von xAI für
-Grok Voice (Abschnitte, kurz); am 12.11. mit 157 simulierten Gesprächen nachgeschärft (ein Modell spielt drängende,
-fremdsprachige und listige Besucher, ein zweites prüft): Sätze für Besucher beschrieben statt zitiert, damit sie in deren Sprache
-kommen; eigene Regel für Hartnäckigkeit; „vor die Haustür“ nur für große Pakete ohne Unterschrift. Mit gestellter Station und gestelltem xAI
-geprüft; mit dem echten Grok Voice über SIP-Proben geprüft. Am echten Klingeln ist die eigene Anmeldung noch nicht geprüft. Die Tests
-liegen im Projektordner der Anlage, weil sie deren Prüfstand brauchen.
+Version 2.2.0 (12.11.2026), nach dem ersten echten Klingeln:
+
+- Ein Ruf blieb hier offen, nachdem die Station ihn beendet hatte, und jedes neue Klingeln bekam „besetzt“. Jetzt löst ein neuer Ruf den
+  alten ab, und ohne Ton der Station endet ein Ruf nach 8 s (wenn sie ohne Pause sendet).
+- Tagebuch der Rufe, Diagnose, Hinweise unter Reparaturen, ein Gerät für alle Entitäten.
+- Nach einer Nachricht legt die Integration nach 8 s Stille auf statt die Automation blind nach 25 s.
+- Die Erkennung bekommt den Hinweis „Deutsch“; andere Sprachen gehen weiter.
+- Die Anweisung nennt, welcher Briefkasten wem gehört, und dass man die Klappe der Paketbox aufziehen muss.
+
+Was von der Qualitätsskala von Home Assistant hier gilt, steht in `custom_components/tuer_assistent/quality_scale.yaml` (eigene
+Integrationen bekommen keine Stufe; die Regeln dienen als Prüfliste). Geprüft mit gestellter Station und gestelltem xAI, mit dem echten
+Grok Voice über Proben mit aufgenommenen Sätzen und mit simulierten Gesprächen. Die Tests liegen im Projektordner der Anlage, weil sie
+deren Prüfstand brauchen.

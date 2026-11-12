@@ -22,7 +22,7 @@ import time
 from homeassistant.components import conversation
 from homeassistant.helpers import intent
 
-from . import DOMAIN, LAENGE, MITSCHRIFT, STAND, gewaehlt
+from . import DOMAIN, GERAET, LAENGE, MITSCHRIFT, STAND, gewaehlt
 
 _LOGGER = logging.getLogger(__name__)
 WERKZEUG_ALS_TEXT = re.compile(r"bewohner_rufen|nachricht_weitergeben|\bauflegen\s*\(")
@@ -48,6 +48,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class EmpfangAgent(conversation.ConversationEntity):
     _attr_name = "Empfang (Grok, mit Ersatzantwort)"
     _attr_unique_id = f"{DOMAIN}_agent"
+    _attr_device_info = GERAET
 
     def __init__(self) -> None:
         self.entity_id = "conversation.empfang"

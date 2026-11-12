@@ -52,6 +52,9 @@ Grok Voice (Sprache zu Sprache, `sprache.py`; seit 11.11.2026): Steht in configu
 meldet sich die Integration selbst als Innenstation 9904 an der Station EG an (kennung, port 5062, station_port 5060 und stimme eve
 wählbar) und nimmt deren Rufe an; einen Ersatzweg gibt es nicht (sein Wort vom 11.11.2026 abends: „wenn es kaputt geht, dann bleibt es
 halt kaputt“). `tuer_assistent.auflegen` beendet auch dieses Gespräch.
+Nachsehen: `tuer_assistent.stand` (Anmeldung, xAI, letzter Ruf), der Sensor „Empfang Störung“, Einstellungen → Reparaturen (Schlüssel,
+Anmeldung), das Tagebuch der letzten Rufe in `.storage/tuer_assistent.rufe` und die Diagnose am Eintrag (`diagnostics.py`, ohne
+Mitschriften, Namen und Schlüssel). Was von der Qualitätsskala von Home Assistant hier gilt und was nicht: `quality_scale.yaml`.
 Einbinden: Ordner nach /config/custom_components/tuer_assistent, in configuration.yaml die Zeile „tuer_assistent:“, Neustart (der
 Eintrag unter „Geräte & Dienste“ entsteht dabei von selbst). Entfernen: erst im Sprachassistenten „Tür“ wieder die Erkennung und den
 Agenten von SuperGrok wählen und bei diesem die Werkzeugliste abwählen, dann Eintrag und Zeile löschen, Neustart.
@@ -68,6 +71,7 @@ from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import llm
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
@@ -84,6 +88,9 @@ WAHL = "select.empfang_ki"
 ZEIT = 8  # s bis zur Ersatzantwort, wenn configuration.yaml nichts nennt
 PLATTFORMEN = ["stt", "conversation", "select", "tts", "binary_sensor"]
 STAND = f"{DOMAIN}.stand"
+# Ein Gerät (Dienst) für alle Entitäten: eine Seite mit Zustand, Wahl der KI und dem Knopf „Diagnose herunterladen“.
+GERAET = DeviceInfo(identifiers={(DOMAIN, "empfang")}, name="Empfang", manufacturer="ilihack", model="Tür-Assistent (Grok Voice)",
+                    entry_type=DeviceEntryType.SERVICE)
 LAENGE = 300
 SPERRE = 20  # s, in denen derselbe Aufruf kein zweites Ereignis feuert
 EINMAL = 3  # s, in denen dasselbe Werkzeug auch mit anderen Feldern kein zweites Ereignis feuert (ein Aufruf je Antwort)

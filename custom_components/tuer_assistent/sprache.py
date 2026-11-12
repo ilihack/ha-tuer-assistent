@@ -9,7 +9,7 @@ Weg: Die Station EG ist der SIP-Server ihrer Innenstationen. Diese Integration m
 feuert sie dasselbe Ereignis mit „ende“, der Mitschrift des Gesprächs und dem Grund des Endes; darauf hört die Automation „Klingel EG:
 oberster Knopf“ und schickt genau eine Meldung aufs Handy (Wort des Betreibers vom 11.11.2026 spätabends: „bei diesem Knopf brauchen wir … nicht
 überall innen drin … Nachrichten abzuspielen … Die Meldung aufs Handy ist dann das Transkript von dem, was abging“). Ton: G.711 (A-law vor µ-law, 8 kHz) wie von der Station angeboten; xAI nimmt und
-liefert ihn genau so, ohne Umrechnen. Paketlänge wie angeboten (die Station: 40 ms). Andere Medien im Angebot (Video) lehnt die Antwort
+liefert ihn genau so, ohne Umrechnen. Paketlänge wie angeboten, ohne Angabe 20 ms (so die Rufe vom 12.11.2026). Andere Medien im Angebot (Video) lehnt die Antwort
 mit Port 0 ab.
 
 - Kein Ersatzweg (Wort des Betreibers vom 11.11.2026 abends: „Voice-over-Voice und wenn es kaputt geht, dann bleibt es halt kaputt“): Kommt xAI
@@ -40,14 +40,28 @@ mit Port 0 ab.
   nicht verloren (ebenso geprobt).
 - Mitschrift: je Antwort `tuer_assistent_gespraech` wie beim Text-Agenten (ki „grok_voice“, sekunden = vom Ende der Rede bis zum
   ersten Ton; aufs Handy nur, solange der Schalter „Tür Mitschrift“ an ist); das ganze Gespräch kommt mit „ende“ (oben).
-- Ein Ruf zur Zeit (sonst 486), höchstens HOECHSTENS s (die Station beendet ohnehin nach 2 min).
+- Ein Ruf zur Zeit, höchstens HOECHSTENS s. Die Station beendet ein Gespräch nach 2 min selbst und sagt es dieser Gegenstelle nicht
+  immer (12.11.2026: Der Ruf galt hier noch etwa 1 min als offen, jedes neue Klingeln bekam 486, die Station sagte „Anruf besetzt“). Darum:
+  Ruft die Station neu an, ist der alte Ruf für sie vorbei; er wird hier beendet und der neue angenommen (kein 486 mehr). Und kommt
+  TON_AUS s kein Ton-Paket der Station, ist der Ruf zu Ende; das gilt nur, wenn die Station in den ersten DAUERTON_AB s ohne Pause
+  gesendet hat (G.711 ohne Stille-Unterdrückung). Ob sie das tut, war bis 12.11.2026 nicht gemessen; schweigt sie in Pausen, entfiele
+  sonst jedes Gespräch nach TON_AUS s Schweigen des Besuchers. Das Tagebuch hält es je Ruf fest (Feld `dauerton`).
 - Robust: Jede Teilaufgabe des Rufs (Takt, Lesen, Schreiben, Wächter) beendet bei einem unerwarteten Fehler den Ruf sauber (BYE),
   mit dem Grund in der Meldung am Ende, statt still hängen zu bleiben; ein einzelnes unlesbares Ereignis von xAI wird übergangen; scheitert das Senden an xAI,
   legt sie auf und meldet es; ein Fehler in einem Werkzeug geht als Ergebnis an das Modell, der Ruf läuft weiter; nach Werkzeugen
   fordert sie die Antwort erst an, wenn xAI die Antwort mit den Aufrufen beendet hat (so verlangt es xAI bei mehreren Aufrufen).
-- Wächter: Kommt nach dem Ende der Rede des Besuchers binnen KEINE_ANTWORT s keine Antwort von xAI (Verbindung steht, aber hängt),
-  legt sie auf (Grund in der Meldung am Ende). Spricht STILLE_ENDE s niemand (weder der Besucher noch der Empfang), legt sie auf: Der
-  Besucher ist gegangen, die Minuten kosten Geld.
+- Wächter (`Ruf.haengt`), jede halbe Sekunde, der erste zutreffende Grund beendet den Ruf: TON_AUS s kein Ton der Station (nur bei
+  Dauerton, oben); der Besucher „spricht“ laut Erkennung REDE_HOECHSTENS s ohne Ende (Lärm, oder die Erkennung hängt); xAI ist dran
+  (Rede zu Ende, Werkzeug-Ergebnis geschickt oder Antwort begonnen) und liefert KEINE_ANTWORT s weder Ereignis noch Ton; STILLE_ENDE s spricht niemand (der
+  Besucher ist gegangen, die Minuten kosten Geld), nach einer weitergegebenen Nachricht schon nach STILLE_NACHRICHT s (Wort des Betreibers
+  vom 12.11.2026: „legt nicht direkt auf, vlt optimieren“; spricht der Besucher weiter, gilt wieder STILLE_ENDE).
+- Tagebuch (Wort des Betreibers vom 12.11.2026: „guck mal, ob wir auch genug Logging machen“): Je Ruf, auch je abgelehntem, ein Eintrag in
+  `.storage/tuer_assistent.rufe` (die letzten RUFE_MERKEN): Beginn, Dauer, Grund des Endes, Ton-Pakete in beide Richtungen, größte
+  Lücke im Ton der Station, Wartezeiten bis zum ersten Ton, Werkzeuge, der Ablauf mit Zeiten (SIP, Erkennung, Antworten von xAI) und
+  die Mitschrift. Im Log von Home Assistant steht je Ruf eine Zeile mit den Zahlen, nie mit dem, was der Besucher sagt. Die
+  Diagnose (diagnostics.py) gibt das Tagebuch ohne Mitschrift heraus.
+- Reparaturen: Ist der xAI-Schlüssel abgelehnt oder gesperrt oder die Anmeldung an der Station seit MELDEN_NACH s verloren, steht es
+  zusätzlich unter Einstellungen → Reparaturen und verschwindet dort von selbst.
 """
 from __future__ import annotations
 
@@ -66,19 +80,29 @@ from types import SimpleNamespace
 import aiohttp
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.template import Template
+from homeassistant.util import dt as dt_util
 
-from . import LAENGE, MITSCHRIFT, WERKZEUGE, Werkzeug, _stand, agenten, gewaehlt
+from . import DOMAIN, LAENGE, MITSCHRIFT, WERKZEUGE, Werkzeug, _stand, agenten, gewaehlt
 
 _LOGGER = logging.getLogger(__name__)
 URL = "wss://api.x.ai/v1/realtime?model=grok-voice-latest"
 EREIGNIS = "tuer_assistent_grok_voice"
 VERBINDEN = 5.0  # s für Verbindung und Anweisung, bevor der Ruf angenommen wird
 HOECHSTENS = 180  # s je Ruf
-KEINE_ANTWORT = 10  # s nach dem Ende der Rede ohne Antwort von xAI: auflegen und melden
-STILLE_ENDE = 30  # s, in denen niemand spricht: auflegen
+KEINE_ANTWORT = 10  # s, in denen xAI dran ist und weder Ereignis noch Ton liefert: auflegen und melden
+STILLE_ENDE = 20  # s, in denen niemand spricht: auflegen
+STILLE_NACHRICHT = 8  # s Stille nach einer weitergegebenen Nachricht: auflegen
+REDE_HOECHSTENS = 60  # s Rede des Besuchers ohne erkanntes Ende (Lärm, Erkennung hängt): auflegen
+TON_AUS = 8  # s ohne Ton-Paket der Station: Sie hat den Ruf beendet, ohne es zu sagen (nur bei Dauerton, siehe DAUERTON_AB)
+DAUERTON_AB = 3.0  # s nach dem ersten Ton-Paket: Hat die Station bis dahin ohne Pause gesendet (mind. 80 % von 8000 Byte/s), gilt TON_AUS
+NACHKLANG = 0.4  # s nach dem letzten gespielten Ton, bevor aufgelegt wird
+RUFE_MERKEN = 30  # Rufe im Tagebuch (.storage/tuer_assistent.rufe)
+SCHRITTE = 300  # Einträge im Ablauf eines Rufs
+SPRACHE = "de"  # Hinweis an die Erkennung von xAI (language_hint); andere Sprachen erkennt sie weiterhin
 ABLAUF = 300  # s, erbetene Gültigkeit der Anmeldung (die Station gibt 60 s)
 WARTEN = (5, 10, 20, 40, 60)  # s bis zum nächsten Anmeldeversuch nach einem Fehler
 MELDEN_NACH = 180  # s ohne Anmeldung, dann einmal aufs Handy
@@ -340,6 +364,23 @@ class Ruf:
         self.protokoll: list[str] = []  # das ganze Gespräch für die Meldung am Ende
         self.grund = ""  # warum der Ruf endete
         self.gemeldet = False
+        self.nachricht_durch = False  # eine Nachricht ist weitergegeben und der Besucher hat seither nichts gesagt
+        self.zuletzt_xai = 0.0  # letztes Ereignis von xAI zu einer Antwort
+        self.zuletzt_rtp = self.beginn  # letztes Ton-Paket der Station
+        self.pakete_rein = self.pakete_raus = 0
+        self.erstes_rtp: float | None = None
+        self.bytes_rein = 0
+        self.dauerton: bool | None = None  # sendet die Station ohne Pause? (None: noch nicht entschieden)
+        self.luecke = 0.0  # größter Abstand zwischen zwei Ton-Paketen der Station
+        self.wartezeiten: list[float] = []  # je Antwort: s vom Ende der Rede bis zum ersten Ton
+        self.gerufen: list[str] = []  # alle Werkzeuge des Rufs
+        self.uhr = dt_util.now().isoformat(timespec="seconds")
+        self.ablauf: list[list] = []  # [s seit Beginn, was geschah], für das Tagebuch; nie, was der Besucher sagt
+        self.schritt("INVITE der Station")
+
+    def schritt(self, text: str) -> None:
+        if len(self.ablauf) < SCHRITTE:
+            self.ablauf.append([round(time.monotonic() - self.beginn, 1), text])
 
     # --- Aufbau -------------------------------------------------------------------------------------------------------------
     async def starten(self) -> None:
@@ -356,6 +397,7 @@ class Ruf:
                 self.b.xai_setzen("abgelehnt (HTTP %d)" % err.status)
             if self.lebt:
                 _LOGGER.warning("Grok Voice: Ruf nicht angenommen (%s)", grund)
+                self.schritt("503 an die Station: " + grund)
                 self.b.senden(antwort(self.felder, 503, "Service Unavailable", to_tag=self.tag), self.adresse)
                 self.hass.bus.async_fire(EREIGNIS, {"ergebnis": "abgelehnt", "grund": grund})
                 self.grund = "nicht angenommen: " + grund
@@ -369,7 +411,8 @@ class Ruf:
         self.angenommen = True
         self.hass.bus.async_fire(EREIGNIS, {"ergebnis": "angenommen", "codec": f"{c.name}/8000"})
         _LOGGER.info("Grok Voice: Ruf angenommen nach %.1f s (%s, %d ms)", time.monotonic() - self.beginn, c.name, self.ptime)
-        self.zuletzt_besucher = time.monotonic()
+        self.schritt("angenommen (200 OK), xAI verbunden")
+        self.zuletzt_besucher = self.zuletzt_rtp = time.monotonic()
         for name, arbeit in (("200", self._wiederholen_200), ("Schreiben", self._schreiben), ("Lesen", self._lesen),
                              ("Takt", self._takt), ("Frist", self._frist), ("Wächter", self._waechter)):
             self.aufgaben.append(asyncio.create_task(self._sicher(name, arbeit)))
@@ -402,14 +445,25 @@ class Ruf:
     async def _waechter(self) -> None:
         while self.lebt:
             await asyncio.sleep(0.5)
-            jetzt = time.monotonic()
-            if self.warte_seit is not None and jetzt - self.warte_seit > KEINE_ANTWORT:
-                await self.beenden("xAI antwortet nicht (%d s)" % KEINE_ANTWORT)
+            if grund := self.haengt(time.monotonic()):
+                await self.beenden(grund)
                 return
-            ruhig = not self.ausgang and self.antwort_fertig and not self.besucher_spricht and self.warte_seit is None
-            if ruhig and jetzt - max(self.zuletzt_ton, self.zuletzt_besucher) > STILLE_ENDE:
-                await self.beenden("%d s Stille" % STILLE_ENDE)
-                return
+
+    def haengt(self, jetzt: float) -> str:
+        """Leer, solange der Ruf vorankommt; sonst der Grund, ihn zu beenden. Jeder Zustand hat genau eine Frist, keiner bleibt ohne."""
+        if self.dauerton and jetzt - self.zuletzt_rtp > TON_AUS:
+            return "Station sendet keinen Ton mehr (%d s)" % TON_AUS
+        if self.ausgang:  # der Empfang spricht gerade
+            return ""
+        if self.besucher_spricht:  # vor xAI: Redet er, ist nicht xAI dran (auch wenn eine abgebrochene Antwort noch nicht fertig gemeldet ist)
+            return "Rede des Besuchers ohne Ende (%d s)" % REDE_HOECHSTENS if jetzt - self.zuletzt_besucher > REDE_HOECHSTENS else ""
+        if self.warte_seit is not None or not self.antwort_fertig:  # xAI ist dran
+            seit = max(self.warte_seit or 0.0, self.zuletzt_xai, self.zuletzt_ton)
+            return "xAI antwortet nicht (%d s)" % KEINE_ANTWORT if jetzt - seit > KEINE_ANTWORT else ""
+        still = jetzt - max(self.zuletzt_ton, self.zuletzt_besucher)
+        if self.nachricht_durch:
+            return "%d s Stille nach der Nachricht" % STILLE_NACHRICHT if still > STILLE_NACHRICHT else ""
+        return "%d s Stille" % STILLE_ENDE if still > STILLE_ENDE else ""
 
     # --- Ton ----------------------------------------------------------------------------------------------------------------
     def ton_rein(self, daten: bytes, adresse) -> None:
@@ -418,6 +472,17 @@ class Ruf:
         paket = rtp_nutzlast(daten)
         if paket is None or paket[0] != self.codec.pt:
             return
+        jetzt = time.monotonic()
+        if self.pakete_rein:
+            if jetzt - self.zuletzt_rtp > max(self.luecke, 1.0):
+                self.schritt("Ton der Station setzte %.1f s aus" % (jetzt - self.zuletzt_rtp))
+            self.luecke = max(self.luecke, jetzt - self.zuletzt_rtp)
+        self.zuletzt_rtp, self.pakete_rein, self.bytes_rein = jetzt, self.pakete_rein + 1, self.bytes_rein + len(paket[1])
+        if self.erstes_rtp is None:
+            self.erstes_rtp = jetzt
+        elif self.dauerton is None and jetzt - self.erstes_rtp >= DAUERTON_AB:  # einmal je Ruf entscheiden
+            self.dauerton = self.bytes_rein >= 0.8 * 8000 * (jetzt - self.erstes_rtp)
+            self.schritt("Station sendet Ton ohne Pause" if self.dauerton else "Station sendet Ton mit Pausen: keine Frist für fehlenden Ton")
         self.eingang.extend(paket[1])
         if len(self.eingang) >= 640:  # 80 ms je Nachricht an xAI
             self.raus.put_nowait({"type": "input_audio_buffer.append", "audio": base64.b64encode(bytes(self.eingang)).decode()})
@@ -450,8 +515,9 @@ class Ruf:
                 kopf = bytes([0x80, (0x80 if marke else 0) | c.pt]) + seq.to_bytes(2, "big") + ts.to_bytes(4, "big") + ssrc.to_bytes(4, "big")
                 if self.rtp is not None:
                     self.rtp.sendto(kopf + nutz, ziel)
+                    self.pakete_raus += 1
                 seq, ts, naechst = (seq + 1) & 0xFFFF, (ts + groesse) & 0xFFFFFFFF, naechst + takt
-            if self.auflegen_wunsch and self.antwort_fertig and not self.ausgang and time.monotonic() - self.zuletzt_ton > 0.8:
+            if self.auflegen_wunsch and self.antwort_fertig and not self.ausgang and time.monotonic() - self.zuletzt_ton > NACHKLANG:
                 self.hass.async_create_task(self.beenden(self.auflegen_grund))
                 return
 
@@ -493,17 +559,23 @@ class Ruf:
 
     async def _ereignis(self, e: dict) -> None:
         art = e.get("type", "")
+        if art.startswith("response."):
+            self.zuletzt_xai = time.monotonic()
         if art in ("response.output_audio.delta", "response.audio.delta"):
             if self.unterbrochen:  # Rest der abgebrochenen Antwort
                 return
             if self.wartezeit is None and self.ende_rede is not None:
                 self.wartezeit = time.monotonic() - self.ende_rede
+                self.wartezeiten.append(round(self.wartezeit, 1))
+                self.schritt("erster Ton der Antwort nach %.1f s" % self.wartezeit)
             self.ausgang.extend(base64.b64decode(e.get("delta") or ""))
         elif art == "response.created":
             self.offen = max(0, self.offen - 1)
             self.antwort_fertig, self.warte_seit, self.laeuft, self.unterbrochen = False, None, True, False
+            self.schritt("Antwort beginnt")
         elif art == "response.done":  # nach Werkzeug-Aufrufen erst jetzt die Folgeantwort anfordern; fertig erst, wenn auch sie durch ist
             self.laeuft = False
+            self.schritt("Antwort fertig (%s)" % str((e.get("response") or {}).get("status") or "ohne Angabe")[:20])
             if self.nach_werkzeug:
                 self.nach_werkzeug = False
                 await self._folgeantwort()
@@ -512,9 +584,12 @@ class Ruf:
             self.ausgang.clear()
             self.unterbrochen = self.laeuft or self.unterbrochen
             self.besucher_spricht, self.zuletzt_besucher = True, time.monotonic()
+            self.warte_seit, self.nachricht_durch = None, False  # er spricht (wieder): nicht xAI ist dran, und es gilt wieder STILLE_ENDE
+            self.schritt("Besucher spricht" + (" (dazwischen)" if self.laeuft else ""))
         elif art == "input_audio_buffer.speech_stopped":
             self.ende_rede, self.wartezeit = time.monotonic(), None
             self.besucher_spricht, self.zuletzt_besucher, self.warte_seit = False, self.ende_rede, self.ende_rede
+            self.schritt("Rede zu Ende")
         elif art == "conversation.item.input_audio_transcription.completed":
             self.besucher = " ".join(str(e.get("transcript") or "").split())
             if self.besucher:
@@ -529,6 +604,7 @@ class Ruf:
         elif art == "error":
             fehler = e.get("error") or {}
             _LOGGER.warning("Grok Voice: Meldung von xAI: %s %s", fehler.get("type"), str(fehler.get("message"))[:160])
+            self.schritt("Fehler von xAI: %s %s" % (fehler.get("type"), str(fehler.get("message"))[:160]))
 
     async def _werkzeug(self, e: dict) -> None:
         name = str(e.get("name") or "")
@@ -547,6 +623,9 @@ class Ruf:
                 _LOGGER.exception("Grok Voice: Werkzeug %s fehlgeschlagen", name)
                 ausgabe = {"ergebnis": "Das hat gerade nicht geklappt. Bitte den Besucher, selbst an der Wohnung zu klingeln."}
             self.werkzeuge.append(name)
+            self.gerufen.append(name)
+            self.schritt("Werkzeug " + name)
+            self.nachricht_durch = name == "nachricht_weitergeben"
             self.protokoll.append({"bewohner_rufen": "(dir Bescheid gegeben)", "nachricht_weitergeben": "(Nachricht an dich weitergegeben)",
                                    "auflegen": "(aufgelegt)"}.get(name, "(%s)" % name))
             if name == "auflegen":
@@ -592,7 +671,11 @@ class Ruf:
         self.grund = self.grund or grund
         if bye and self.angenommen:
             self.b.bye(self)
-        _LOGGER.info("Grok Voice: Ruf beendet nach %.0f s (%s)", time.monotonic() - self.beginn, grund)
+        self.schritt("Ende: %s%s" % (grund, " (BYE an die Station)" if bye and self.angenommen else ""))
+        warten = "; bis zum ersten Ton im Mittel %.1f s, höchstens %.1f s" % (sum(self.wartezeiten) / len(self.wartezeiten), max(self.wartezeiten)) if self.wartezeiten else ""
+        _LOGGER.info("Grok Voice: Ruf beendet nach %.0f s (%s); Ton von der Station %d Pakete, größte Lücke %.1f s, zur Station %d; "
+                     "%d Antworten%s; Werkzeuge: %s", time.monotonic() - self.beginn, grund, self.pakete_rein, self.luecke, self.pakete_raus,
+                     sum(1 for _, t in self.ablauf if t == "Antwort beginnt"), warten, ", ".join(self.gerufen) or "keins")
         await self.aufraeumen()
 
     async def aufraeumen(self) -> None:
@@ -620,11 +703,19 @@ class Ruf:
         text = "\n".join(self.protokoll)
         if len(text) > MITSCHRIFT_HOECHSTENS:
             text = text[:MITSCHRIFT_HOECHSTENS - 2].rsplit(" ", 1)[0] + " …"
+        sekunden = round(time.monotonic() - self.beginn)
         try:
-            self.hass.bus.async_fire(EREIGNIS, {"ergebnis": "ende", "angenommen": self.angenommen, "sekunden": round(time.monotonic() - self.beginn),
+            self.hass.bus.async_fire(EREIGNIS, {"ergebnis": "ende", "angenommen": self.angenommen, "sekunden": sekunden,
                                                 "grund": self.grund, "mitschrift": text})
         except Exception:  # noqa: BLE001  die Meldung darf das Aufräumen nie stören
             _LOGGER.debug("Ende nicht gefeuert", exc_info=True)
+        try:
+            self.b.merken({"beginn": self.uhr, "sekunden": sekunden, "angenommen": self.angenommen, "grund": self.grund,
+                           "ton": "%s, %d ms" % (self.codec.name, self.ptime) if self.codec else "", "pakete_rein": self.pakete_rein,
+                           "pakete_raus": self.pakete_raus, "luecke": round(self.luecke, 1), "dauerton": self.dauerton, "wartezeiten": self.wartezeiten,
+                           "werkzeuge": self.gerufen, "ablauf": self.ablauf, "mitschrift": self.protokoll})
+        except Exception:  # noqa: BLE001  das Tagebuch auch nicht
+            _LOGGER.debug("Ruf nicht ins Tagebuch geschrieben", exc_info=True)
 
 
 async def _warte_auf_update(ws) -> None:
@@ -669,6 +760,28 @@ class Bruecke(asyncio.DatagramProtocol):
         self.xai = "noch nicht geprüft"
         self.xai_ok_seit = time.monotonic()  # bis zur ersten Prüfung als gut angenommen
         self.pruefung: asyncio.Task | None = None
+        self.rufe: list[dict] = []  # Tagebuch der letzten Rufe, neuester zuletzt
+        self.speicher: Store | None = None
+
+    # --- Tagebuch -----------------------------------------------------------------------------------------------------------
+    def merken(self, eintrag: dict) -> None:
+        """Ein Ruf ins Tagebuch (die letzten RUFE_MERKEN) und sein Ergebnis in tuer_assistent.stand."""
+        self.rufe.append(eintrag)
+        del self.rufe[:-RUFE_MERKEN]
+        if self.speicher is not None:
+            self.speicher.async_delay_save(lambda: {"rufe": self.rufe}, 2)
+        _stand(self.hass, letzter_ruf="%s, %d s: %s" % (eintrag["beginn"][:16].replace("T", " "), eintrag["sekunden"], eintrag["grund"]))
+
+    def _reparatur(self, kennung: str, grund: str = "") -> None:
+        """Hinweis unter Einstellungen → Reparaturen setzen (mit Grund) oder löschen (ohne)."""
+        try:
+            if grund:
+                ir.async_create_issue(self.hass, DOMAIN, kennung, is_fixable=False, severity=ir.IssueSeverity.ERROR,
+                                      translation_key=kennung, translation_placeholders={"grund": grund})
+            else:
+                ir.async_delete_issue(self.hass, DOMAIN, kennung)
+        except Exception:  # noqa: BLE001  der Hinweis ist Zugabe; Sensor und Meldung aufs Handy gibt es ohnehin
+            _LOGGER.debug("Reparatur-Hinweis %s nicht gesetzt", kennung, exc_info=True)
 
     # --- xAI ----------------------------------------------------------------------------------------------------------------
     async def verbinden(self):
@@ -687,7 +800,8 @@ class Bruecke(asyncio.DatagramProtocol):
             await ws.send_json({"type": "session.update", "session": {
                 "instructions": anweisung, "voice": self.stimme, "reasoning": {"effort": "high"},
                 "turn_detection": {"type": "server_vad"}, "tools": werkzeug_schemas(),
-                "audio": {"input": {"format": format_, "transcription": {"keyterms": namen(self.hass)}}, "output": {"format": format_}}}})
+                "audio": {"input": {"format": format_, "transcription": {"keyterms": namen(self.hass), "language_hint": SPRACHE}},
+                          "output": {"format": format_}}}})
             await _warte_auf_update(ws)
         except BaseException:
             await ws.close()
@@ -717,7 +831,10 @@ class Bruecke(asyncio.DatagramProtocol):
             _LOGGER.warning("Grok Voice: xAI-Schlüssel %s", zustand)
             _mitschrift_melden(self.hass, "xAI-Schlüssel %s; der oberste Knopf geht nicht" % zustand)
         elif vorher and zustand == "ok":
+            _LOGGER.info("Grok Voice: xAI-Schlüssel wieder in Ordnung")
             _mitschrift_melden(self.hass, "xAI-Schlüssel wieder in Ordnung")
+        if jetzt or zustand == "ok":
+            self._reparatur("xai_schluessel", zustand if jetzt else "")
         _stand(self.hass, xai=zustand)
 
     async def schluessel_pruefen(self) -> None:
@@ -809,6 +926,7 @@ class Bruecke(asyncio.DatagramProtocol):
                 _stand(self.hass, grok_voice="angemeldet als %s" % self.kennung)
                 if gemeldet:
                     _mitschrift_melden(self.hass, "wieder an der Station angemeldet")
+                    self._reparatur("station_anmeldung")
                 self.anmelde_fehler_seit, gemeldet, versuch = None, False, 0
                 await asyncio.sleep(max(ERNEUERN_MIN, min(gewaehrt * 0.8, gewaehrt - 10.0)))
             except asyncio.CancelledError:
@@ -823,6 +941,7 @@ class Bruecke(asyncio.DatagramProtocol):
                 if not gemeldet and time.monotonic() - self.anmelde_fehler_seit >= MELDEN_NACH:
                     gemeldet = True
                     _mitschrift_melden(self.hass, "an der Station nicht angemeldet (%s); der oberste Knopf geht nicht" % grund)
+                    self._reparatur("station_anmeldung", grund)
                 await asyncio.sleep(WARTEN[min(versuch, len(WARTEN) - 1)])
                 versuch += 1
 
@@ -853,18 +972,23 @@ class Bruecke(asyncio.DatagramProtocol):
             return
         methode = erste.split(" ", 1)[0]
         ruf = self.ruf if self.ruf is not None and self.ruf.call_id == feld(felder, "call-id") else None
+        if ruf is None and self.ruf is not None and methode in ("ACK", "BYE", "CANCEL"):  # gilt einem Ruf, den es hier nicht (mehr) gibt
+            self.ruf.schritt("%s der Station zu einem anderen Ruf" % methode)
         if methode == "INVITE":
             self._invite(felder, rumpf, adresse, ruf)
         elif methode == "ACK":
-            if ruf is not None:
+            if ruf is not None and not ruf.bestaetigt:
                 ruf.bestaetigt = True
+                ruf.schritt("ACK der Station")
         elif methode == "BYE":
             self.senden(antwort(felder, 200, "OK"), adresse)
             if ruf is not None:
+                ruf.schritt("BYE der Station")
                 self.hass.async_create_task(ruf.beenden("Station hat aufgelegt", bye=False))
         elif methode == "CANCEL":
             self.senden(antwort(felder, 200, "OK"), adresse)
             if ruf is not None and not ruf.angenommen:
+                ruf.schritt("CANCEL der Station")
                 self.senden(antwort(ruf.felder, 487, "Request Terminated", to_tag=ruf.tag), adresse)
                 self.hass.async_create_task(ruf.beenden("abgebrochen", bye=False))
         elif methode in ("OPTIONS", "INFO", "NOTIFY", "MESSAGE"):
@@ -879,9 +1003,12 @@ class Bruecke(asyncio.DatagramProtocol):
             elif ruf.letzte_antwort is not None:  # Wiederholung desselben INVITE
                 self.senden(ruf.letzte_antwort, adresse)
             return
-        if self.ruf is not None:
-            self.senden(antwort(felder, 486, "Busy Here", to_tag=secrets.token_hex(6)), adresse)
-            return
+        if self.ruf is not None:  # die Station führt nur ein Gespräch: Ruft sie neu, ist das alte für sie vorbei (kein BYE dorthin)
+            alt, self.ruf = self.ruf, None
+            _LOGGER.warning("Grok Voice: neuer Ruf der Station, der laufende (%.0f s) galt hier noch als offen und wird beendet",
+                            time.monotonic() - alt.beginn)
+            alt.schritt("neuer Ruf der Station")
+            self.hass.async_create_task(alt.beenden("vom nächsten Klingeln abgelöst", bye=False))
         neu = Ruf(self, felder, adresse, rumpf)
         self.hass.bus.async_fire(EREIGNIS, {"ergebnis": "klingel"})
         if neu.codec is None or not neu.angebot.host or not neu.angebot.port:
@@ -963,6 +1090,11 @@ async def async_starten(hass: HomeAssistant, einstellungen: dict) -> Bruecke | N
     except OSError as err:
         _LOGGER.warning("Grok Voice: Port %s nicht frei (%s); ohne Grok Voice weiter", bruecke.port, err)
         return None
+    bruecke.speicher = Store(hass, 1, DOMAIN + ".rufe")
+    try:
+        bruecke.rufe = list((await bruecke.speicher.async_load() or {}).get("rufe") or [])[-RUFE_MERKEN:]
+    except Exception:  # noqa: BLE001  ohne altes Tagebuch beginnt ein neues
+        _LOGGER.warning("Grok Voice: Tagebuch der Rufe nicht lesbar, es beginnt neu", exc_info=True)
     bruecke.anmeldung = hass.async_create_background_task(bruecke.anmelden_dauernd(), "tuer_assistent Anmeldung")
     bruecke.pruefung = hass.async_create_background_task(bruecke.schluessel_dauernd(), "tuer_assistent Schlüssel")
     _LOGGER.info("Grok Voice: Innenstation %s auf Port %s", bruecke.kennung, bruecke.port)

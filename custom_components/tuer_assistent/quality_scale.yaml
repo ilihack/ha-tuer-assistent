@@ -1,0 +1,158 @@
+# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 12.11.2026, Version 2.2.0).
+# Eigene Integrationen bekommen keine Stufe; die Regeln dienen hier als Prüfliste (Wort des Betreibers vom 12.11.2026: „Schau auch, was Home
+# Assistant für Gold-Integration verlangt und was davon sinnvoll für uns ist“).
+# status: done = erfüllt, exempt = gilt hier nicht oder ist bewusst nicht gewollt (mit Grund), todo = sinnvoll und offen.
+# Regeln: https://developers.home-assistant.io/docs/core/integration-quality-scale/rules
+rules:
+  # --- Bronze ---
+  action-setup:
+    status: done
+    comment: Der Dienst tuer_assistent.auflegen wird in async_setup angemeldet.
+  appropriate-polling:
+    status: done
+    comment: Nur der Sensor „Empfang Störung“ fragt nach, alle 30 s und nur den eigenen Zustand; den Schlüssel prüft die Integration stündlich.
+  brands:
+    status: exempt
+    comment: Kein Eintrag im Marken-Verzeichnis von Home Assistant; für eine Integration nur dieses Hauses unnötig.
+  common-modules:
+    status: exempt
+    comment: Kein Koordinator und keine Basis-Entität; fünf Entitäten ohne gemeinsamen Abruf.
+  config-flow:
+    status: exempt
+    comment: Einrichtung in configuration.yaml mit !secret (Schlüssel, Station, Passwort). Der Eintrag entsteht nur, damit Home Assistant die Entitäten annimmt.
+  config-flow-test-coverage:
+    status: exempt
+    comment: Der Ablauf hat keine Maske.
+  dependency-transparency:
+    status: done
+    comment: Keine fremden Pakete; SIP, RTP und Digest stehen in sprache.py.
+  docs-actions:
+    status: done
+    comment: README und services.yaml.
+  docs-conditions:
+    status: exempt
+    comment: Keine Bedingungen.
+  docs-high-level-description:
+    status: done
+  docs-installation-instructions:
+    status: done
+  docs-removal-instructions:
+    status: done
+  docs-triggers:
+    status: exempt
+    comment: Keine Geräte-Auslöser; die drei Ereignisse stehen im README.
+  entity-event-setup:
+    status: done
+    comment: Die Entitäten melden sich für nichts an, was sie wieder abmelden müssten.
+  entity-unique-id:
+    status: done
+  has-entity-name:
+    status: exempt
+    comment: Die Namen der Entitäten stehen fest (binary_sensor.empfang_stoerung hängt an der Plakette der Hubs); eine Umstellung brächte nur Risiko.
+  runtime-data:
+    status: exempt
+    comment: Der Zustand liegt in hass.data, weil die Innenstation aus configuration.yaml startet, bevor es den Eintrag gibt.
+  test-before-configure:
+    status: exempt
+    comment: Keine Maske; siehe test-before-setup.
+  test-before-setup:
+    status: done
+    comment: Schlüssel, Station oder Passwort fehlen, Port belegt, Station nicht auflösbar → Warnung im Log, Sensor „Empfang Störung“ an. Den Schlüssel prüft die Integration gleich beim Start bei xAI.
+  unique-config-entry:
+    status: done
+    comment: single_config_entry und feste unique_id.
+  # --- Silber ---
+  action-exceptions:
+    status: exempt
+    comment: tuer_assistent.auflegen wirft mit Absicht nie; das Ergebnis steht in tuer_assistent.stand (die Automation ruft den Dienst ungeprüft).
+  config-entry-unloading:
+    status: done
+    comment: Die Entitäten werden entladen. Die Innenstation gehört zu configuration.yaml und meldet sich beim Anhalten von Home Assistant ab.
+  docs-configuration-parameters:
+    status: done
+  docs-installation-parameters:
+    status: done
+  entity-unavailable:
+    status: exempt
+    comment: Der Sensor meldet die Störung selbst (an, mit Grund); „nicht verfügbar“ würde die Plakette verschlucken.
+  integration-owner:
+    status: done
+  log-when-unavailable:
+    status: done
+    comment: Anmeldung verloren und wieder da, Schlüssel abgelehnt und wieder gut, je einmal im Log.
+  parallel-updates:
+    status: done
+  reauthentication-flow:
+    status: exempt
+    comment: Der Schlüssel steht in secrets.yaml; ein abgelehnter Schlüssel erscheint unter Reparaturen mit dem, was zu tun ist.
+  test-coverage:
+    status: done
+    comment: Die Tests liegen im Prüfstand der Anlage (pruefung/tests/test_grok_voice.py, test_tuer_assistent.py und weitere), mit gestellter Station und gestelltem xAI.
+  # --- Gold ---
+  devices:
+    status: done
+    comment: Ein Gerät „Empfang“ (Dienst) für alle Entitäten.
+  diagnostics:
+    status: done
+    comment: diagnostics.py, ohne Schlüssel, Passwort, Adresse, Namen und Mitschriften; mit dem Tagebuch der letzten Rufe.
+  discovery:
+    status: exempt
+    comment: Eine Station, fest eingetragen; ihr Passwort lässt sich nicht finden.
+  discovery-update-info:
+    status: exempt
+    comment: Wie discovery.
+  docs-data-update:
+    status: done
+  docs-examples:
+    status: done
+    comment: Ordner beispiele im Projekt (configuration.yaml, Anweisung, Helfer, Automationen).
+  docs-known-limitations:
+    status: done
+  docs-supported-devices:
+    status: done
+  docs-supported-functions:
+    status: done
+  docs-troubleshooting:
+    status: done
+  docs-use-cases:
+    status: done
+  dynamic-devices:
+    status: exempt
+    comment: Genau ein Gerät.
+  entity-category:
+    status: done
+    comment: Störung = Diagnose, Wahl der KI = Einstellung.
+  entity-device-class:
+    status: done
+    comment: Störung = problem.
+  entity-disabled-by-default:
+    status: exempt
+    comment: Keine Entität, die nur selten jemand braucht.
+  entity-translations:
+    status: exempt
+    comment: Ein Haus, eine Sprache; die Namen stehen fest (siehe has-entity-name).
+  exception-translations:
+    status: exempt
+    comment: Die Integration wirft dem Nutzer keine Fehler; Störungen kommen als Sensor, Meldung und Reparatur-Hinweis.
+  icon-translations:
+    status: exempt
+    comment: Zwei feste Symbole.
+  reconfiguration-flow:
+    status: exempt
+    comment: Einstellungen in configuration.yaml.
+  repair-issues:
+    status: done
+    comment: xAI-Schlüssel abgelehnt oder gesperrt; Anmeldung an der Station verloren. Beide verschwinden von selbst.
+  stale-devices:
+    status: exempt
+    comment: Genau ein Gerät.
+  # --- Platin ---
+  async-dependency:
+    status: done
+    comment: Keine fremden Pakete, alles asyncio.
+  inject-websession:
+    status: done
+    comment: Die Sitzung von Home Assistant (async_get_clientsession).
+  strict-typing:
+    status: exempt
+    comment: Typangaben stehen an den Schnittstellen; eine strenge Prüfung mit mypy läuft im Prüfstand der Anlage nicht.

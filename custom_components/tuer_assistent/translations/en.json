@@ -1,0 +1,17 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "There is only one door assistant. It is created from the line \"tuer_assistent:\" in configuration.yaml."
+    }
+  },
+  "issues": {
+    "xai_schluessel": {
+      "title": "Reception: xAI key {grund}",
+      "description": "The top button of the door station does not work: xAI does not accept the key ({grund}).\n\nCheck in the xAI account that the key is still valid and credit is left. Put a new key into `secrets.yaml` as `xai_api_key` and restart Home Assistant. This notice disappears by itself once the hourly check succeeds again."
+    },
+    "station_anmeldung": {
+      "title": "Reception: not registered at the door station",
+      "description": "The top button of the door station does not work: registering as an indoor station fails ({grund}).\n\nCheck that the door station is running and reachable and that the indoor station password in `secrets.yaml` (`vto_9904_passwort`) matches the one at the station. The integration retries every minute; this notice disappears by itself once it works again."
+    }
+  }
+}

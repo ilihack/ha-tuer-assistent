@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from . import DOMAIN, agenten
+from . import DOMAIN, GERAET, agenten
+
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -15,6 +18,8 @@ class EmpfangWahl(SelectEntity, RestoreEntity):
     _attr_name = "Empfang KI"
     _attr_unique_id = f"{DOMAIN}_ki"
     _attr_icon = "mdi:account-voice"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_device_info = GERAET
     _attr_should_poll = False
 
     def __init__(self, liste: list[str]) -> None:
