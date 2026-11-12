@@ -99,6 +99,8 @@ xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche
 
 Version 2.1.2 (11.11.2026): die Integration ist eigene Innenstation, kein VoIP Stack nötig. Nach einem Ruf kommt eine Meldung mit der
 Mitschrift, wenn er den Bewohner betrifft; Schlüssel und Anmeldung werden überwacht. Die Anweisung folgt dem Leitfaden von xAI für
-Grok Voice (Abschnitte, kurz). Mit gestellter Station und gestelltem xAI
+Grok Voice (Abschnitte, kurz); am 12.11. mit 157 simulierten Gesprächen nachgeschärft (ein Modell spielt drängende,
+fremdsprachige und listige Besucher, ein zweites prüft): Sätze für Besucher beschrieben statt zitiert, damit sie in deren Sprache
+kommen; eigene Regel für Hartnäckigkeit; „vor die Haustür“ nur für große Pakete ohne Unterschrift. Mit gestellter Station und gestelltem xAI
 geprüft; mit dem echten Grok Voice über SIP-Proben geprüft. Am echten Klingeln ist die eigene Anmeldung noch nicht geprüft. Die Tests
 liegen im Projektordner der Anlage, weil sie deren Prüfstand brauchen.
