@@ -1,21 +1,13 @@
-tuer_assistent:
-  # Agenten, an die der Empfang weiterreichen darf (Auswahl „Empfang KI“), je mit Sekunden bis zur Ersatzantwort.
-  # Nie einen Agenten mit den Werkzeugen von Home Assistant eintragen: Wer hier steht, spricht mit Fremden.
-  # Der erste ist der Standard, wenn die Auswahl nichts weiß (seit 11.11. Gemini Lite, sein Wort: „lieber Gemini Lite“).
-  agenten:
-    conversation.tur_gemini_lite: 8
-    conversation.tur_assistent: 8
-    conversation.tur_assistent_b: 15
-    conversation.tur_deepseek: 8
-    conversation.tur_haiku: 10
-    conversation.tur_mimo: 15
-  # Grok Voice (Sprache zu Sprache, custom_components/tuer_assistent/sprache.py): meldet sich selbst als Innenstation 9904 an der
-  # Station EG an (UDP 5062). Schlüssel, Adresse der Station und Passwort von 9904 nur in secrets.yaml.
-  grok_voice:
-    schluessel: !secret xai_api_key
-    station: !secret vto_eg_adresse
-    passwort: !secret vto_9904_passwort
+# Für Grok Voice braucht es in configuration.yaml nichts: einrichten über Einstellungen → Geräte & Dienste → Integration hinzufügen →
+# Tür-Assistent (Namen, Begrüßung, Anweisung, xAI-Schlüssel, Türstation), ändern dort unter „Konfigurieren“.
+#
+# Nur für den alten Weg über einen Text-Agenten hinter einem VoIP Stack: die Agenten, an die der Empfang weiterreichen darf (Auswahl
+# „Empfang KI“), je mit Sekunden bis zur Ersatzantwort. Nie einen Agenten mit den Werkzeugen von Home Assistant eintragen: Wer hier
+# steht, spricht mit Fremden.
+# tuer_assistent:
+#   agenten:
+#     conversation.tur_assistent: 8
 
 logger:
   logs:
-    custom_components.tuer_assistent: info
+    custom_components.tuer_assistent: info   # Anmeldung, Annahme und Ende jedes Rufs mit Grund (wenige Zeilen)

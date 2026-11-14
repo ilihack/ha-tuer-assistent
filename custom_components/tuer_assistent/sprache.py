@@ -21,20 +21,25 @@ mit Port 0 ab.
   Schlüssel gleich als abgelehnt; aufgebrauchtes Guthaben steht als solches im Grund. Ohne Antwort von xAI bleibt ein bekanntes Problem
   stehen; 402 und 429 bei der Prüfung gelten auch als abgelehnt. `stoerung()` nennt, was fehlt: nicht angemeldet seit MELDEN_NACH s,
   Schlüssel abgelehnt oder gesperrt, xAI seit XAI_STILL s nicht erreichbar, und warum der letzte Ruf nicht angenommen wurde, wenn es
-  beim nächsten wieder so wäre (xAI lehnt die Verbindung mit 4xx oder die Sitzung mit einer Meldung ab, die Anweisung fehlt oder ist
-  nicht lesbar, kein passender Ton im Angebot); das steht ab dem ersten solchen Ruf da, bis ein Ruf angenommen wird. Daraus der Sensor `binary_sensor.empfang_stoerung` (binary_sensor.py) und die Plakette „Empfang“ auf den Hubs;
+  beim nächsten wieder so wäre (xAI lehnt die Verbindung mit 4xx oder die Sitzung mit einer Meldung ab, Begrüßung oder Anweisung
+  lassen sich nicht rendern, kein passender Ton im Angebot); das steht ab dem ersten solchen Ruf da, bis ein Ruf angenommen wird. Daraus der Sensor `binary_sensor.empfang_stoerung` (binary_sensor.py) und die Plakette „Empfang“ auf den Hubs;
   Beginn und Ende einer Störung melden sich je einmal aufs Handy (Mitschrift mit „ersatz“, die Automation der Mitschrift meldet jedes
   „ersatz“).
 - Nur die Station: Pakete von anderen Adressen verwirft die Integration ungelesen (der Port ist im Hausnetz offen, weil die Station
-  ihn erreichen muss); Ton nur von der Station. Das Passwort für 9904 steht in secrets.yaml.
+  ihn erreichen muss); Ton nur von der Station. Das Passwort für 9904 steht in den Einstellungen des Eintrags.
 - Anmeldung verloren (Station aus, Netz, Name nicht auflösbar, Passwort): neuer Versuch nach 5, 10, 20, 40, dann alle 60 s; dauert es
   MELDEN_NACH s, ist es eine Störung (wie oben). Ohne zufälligen Anteil: Es meldet sich nur diese eine Innenstation, ein Zufall verteilte
   nichts und machte nur die Prüfung unberechenbar. Den Namen der Station löst sie bei jeder Anmeldung neu auf. Beim Anhalten von Home
   Assistant meldet sie sich ab.
-- Anweisung: dieselbe wie bei den Text-Agenten (aus dem gewählten Agenten), gerendert mit `grok_voice = true`; die Begrüßung ist der
-  Satz „Hello, …“ daraus und kommt als fester Text (force_message), ohne das Modell zu fragen, GRUSS_VERZUG s nach der Annahme (die
-  Station spielt dann noch ihre Ansage); die Annahme selbst wartet nicht.
-- Modell: MODELL, versioniert festgelegt (ein Alias wie „grok-voice-latest“ wechselt ohne Zutun das Verhalten).
+- Begrüßung und Anweisung: aus den Einstellungen des Eintrags (Vorlagen; fehlt eine, gilt die Vorgabe aus vorgabe.py), bei jedem Ruf
+  frisch gerendert mit dem Bewohner, der Anrede und den Angaben als Variablen (`texte()`), streng: Eine Variable, die es nicht gibt,
+  ist ein Fehler und kein leerer Text; die Maske prüft das vor dem Speichern. Die Begrüßung kommt als fester Text (force_message),
+  ohne das Modell zu fragen, GRUSS_VERZUG s nach der Annahme (die Station spielt dann noch ihre Ansage); die Annahme selbst wartet
+  nicht. Die Anweisung bekommt den Satz als `begruessung`.
+- Modell: aus den Einstellungen, Vorgabe „grok-voice-latest“ (sein Wort vom 14.11.2026: „nicht fest …, sondern the latest oder default,
+  weil die das aktualisieren“). Welches Modell xAI wirklich nimmt, steht nur in seiner Antwort (auch für einen Namen, den es nicht
+  gibt, nimmt xAI still das Standardmodell, 14.11.2026 gemessen); die Brücke hält es fest (`tuer_assistent.stand`, Tagebuch je Ruf)
+  und schreibt einen Wechsel einmal als Warnung ins Log, damit ein anderes Verhalten nach einem Wechsel zuzuordnen ist.
 - Nachdenken „high“ (Vorgabe von xAI): Mit „none“ schickte es Zusteller nicht in die Paketbox und wusste die Bewohner nicht, bei
   gleicher Wartezeit bis zum ersten Ton (11.11.2026, r53/gv_proto.py).
 - Werkzeuge: dieselben drei mit denselben Grenzen (`Werkzeug` aus __init__.py). „auflegen“ beendet den Ruf, sobald die Verabschiedung
@@ -76,8 +81,8 @@ mit Port 0 ab.
   wenn das Ende eine Störung ist (`gestoert()`, dieselbe Regel wie für „Empfang gestört“ in der Automation der Klingel). Die
   Diagnose (diagnostics.py) gibt das Tagebuch ohne Mitschrift heraus. Dass Mitschriften gespeichert werden, sagt ein Hinweis unter
   Einstellungen → Reparaturen (Wort des Betreibers vom 12.11.2026: „Speichern der Mitschriften ist okay, aber die Integration müsste
-  warnen“); ignoriert, kommt er nicht wieder. Mit `mitschrift_speichern: false` bleibt die Mitschrift aus dem Tagebuch, auch aus
-  den schon gespeicherten Rufen, und der Hinweis entfällt.
+  warnen“); ignoriert, kommt er nicht wieder. Ohne „Mitschrift speichern“ (Einstellungen des Eintrags) bleibt die Mitschrift aus dem
+  Tagebuch, auch aus den schon gespeicherten Rufen, und der Hinweis entfällt.
 - Reparaturen: Ist der xAI-Schlüssel abgelehnt oder gesperrt oder die Anmeldung an der Station seit MELDEN_NACH s verloren, steht es
   zusätzlich unter Einstellungen → Reparaturen und verschwindet dort von selbst.
 """
@@ -93,23 +98,24 @@ import re
 import secrets
 import socket
 import time
+from collections.abc import Mapping
 from types import SimpleNamespace
+from urllib.parse import quote
 
 import aiohttp
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import TemplateError
-from homeassistant.helpers import entity_registry as er, issue_registry as ir
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.template import Template
 from homeassistant.util import dt as dt_util
 
-from . import DOMAIN, LAENGE, MITSCHRIFT, Werkzeug, _stand, agenten, gewaehlt, werkzeuge
+from . import DOMAIN, LAENGE, MITSCHRIFT, VORGABEN, Werkzeug, _stand, angaben_lesen, einstellungen, sauber, vorgabe, werkzeuge
 
 _LOGGER = logging.getLogger(__name__)
-MODELL = "grok-voice-3.0"  # versioniert, wie xAI es für den Betrieb empfiehlt; „grok-voice-latest“ ist ein Alias und wechselt ohne Zutun
-URL = "wss://api.x.ai/v1/realtime?model=" + MODELL
+URL = "wss://api.x.ai/v1/realtime?model="  # dahinter das Modell aus den Einstellungen
 EREIGNIS = "tuer_assistent_grok_voice"
 VERBINDEN = 5.0  # s für Verbindung und Anweisung, bevor der Ruf angenommen wird
 GRUSS_VERZUG = 0.5  # s nach der Annahme, bevor die Begrüßung bestellt wird (die Station spielt dann noch kurz ihre Ansage)
@@ -138,7 +144,7 @@ GUTHABEN = "Guthaben aufgebraucht oder Ausgabengrenze erreicht"  # statt des Tex
 MITSCHRIFT_HOECHSTENS = 1800  # Zeichen der Mitschrift in der Meldung am Ende
 WIEDERHOLEN = (0.5, 1.0, 2.0)  # s, nach denen ein REGISTER ohne Antwort wiederholt wird (danach noch 1 s Warten)
 KURZ = {"v": "via", "f": "from", "t": "to", "i": "call-id", "m": "contact", "l": "content-length", "c": "content-type"}
-BEGRUESSUNG = "Hello! Hier ist der Empfang, wie kann ich helfen?"  # nur falls die Anweisung keinen Satz „Hello, …“ enthält
+BEGRUESSUNG = "Hello! Hier ist der Empfang, wie kann ich helfen?"  # nur falls die Begrüßung aus den Einstellungen leer herauskommt
 
 
 @dataclass(frozen=True)
@@ -294,28 +300,57 @@ def werkzeug_schemas(hass: HomeAssistant) -> list[dict]:
             for name, beschreibung, felder, _ in werkzeuge(hass)]
 
 
-def anweisung_vorlage(hass: HomeAssistant) -> str:
-    """Die Anweisung des gewählten Tür-Agenten (alle Tür-Agenten haben dieselbe); leer, wenn keine zu finden ist."""
-    reg = er.async_get(hass)
-    for eid in [gewaehlt(hass)[0], *agenten(hass)]:
-        e = reg.async_get(eid)
-        eintrag = hass.config_entries.async_get_entry(e.config_entry_id) if e and e.config_entry_id else None
-        sub = eintrag.subentries.get(e.config_subentry_id) if eintrag and getattr(e, "config_subentry_id", None) else None
-        if sub is not None and sub.data.get("prompt"):
-            return str(sub.data["prompt"])
-    return ""
+def variablen(e: Mapping) -> dict:
+    """Variablen für Begrüßung und Anweisung aus den Einstellungen `e`: der Bewohner, die Anrede und je Zeile der Angaben eine. Eine
+    Zeile der Angaben, die nicht passt, kostet hier alle Angaben (die Maske lässt so etwas nicht speichern)."""
+    try:
+        angaben = angaben_lesen(e.get("angaben"))
+    except ValueError:
+        angaben = {}
+    return {**angaben, "grok_voice": True, "bewohner": sauber(e.get("bewohner"), 100), "anrede": e.get("anrede") or VORGABEN["anrede"]}
 
 
-def namen(hass: HomeAssistant) -> list[str]:
-    """Namen aus den Helfern als Hilfe für die Erkennung (keyterms)."""
+def texte(hass: HomeAssistant, e: Mapping) -> tuple[str, str]:
+    """Begrüßung und Anweisung, gerendert aus den Einstellungen `e` (fehlt eine, aus der Vorgabe). Streng: Wirft TemplateError auch
+    für eine Variable, die es nicht gibt. So prüft die Maske vor dem Speichern, und so rendert jeder Ruf."""
+    var = variablen(e)
+    gruss = " ".join(Template(str(e.get("begruessung") or vorgabe.BEGRUESSUNG), hass).async_render(var, parse_result=False, strict=True).split())
+    gruss = gruss or BEGRUESSUNG
+    anweisung = Template(str(e.get("anweisung") or vorgabe.ANWEISUNG), hass).async_render({**var, "begruessung": gruss}, parse_result=False, strict=True)
+    return gruss, anweisung
+
+
+def stichwoerter(e: Mapping) -> list[str]:
+    """Wörter als Hilfe für die Erkennung (keyterms): die großgeschriebenen aus Bewohner und Angaben (Namen) und das Feld „Stichwörter“."""
+    quellen = [str(e.get("bewohner") or "")]
+    try:
+        quellen += angaben_lesen(e.get("angaben")).values()
+    except ValueError:
+        pass
     woerter: list[str] = []
-    for e in ("input_text.tur_namen_dachgeschoss", "input_text.tur_namen_erdgeschoss", "input_text.tur_namen_untergeschoss"):
-        st = hass.states.get(e)
-        for w in re.split(r"[\s,]+", st.state if st else ""):
-            w = re.sub(r"[^0-9A-Za-zÀ-ÿ-]", "", w)
-            if len(w) > 2 and w not in ("und", "Herr", "Frau", "Familie", "unknown", "unavailable") and w not in woerter:
-                woerter.append(w[:50])
-    return woerter[:20] + ["Paketbox"]
+    for w in re.split(r"[\s,;]+", " ".join(quellen)):
+        w = re.sub(r"[^0-9A-Za-zÀ-ÿ-]", "", w)
+        if len(w) > 2 and w[0].isupper() and w not in ("Herr", "Frau", "Familie") and w not in woerter:
+            woerter.append(w[:50])
+    for w in re.split(r"[,;\n]+", str(e.get("stichwoerter") or "")):
+        w = sauber(w, 50)
+        if w and w not in woerter:
+            woerter.append(w)
+    return woerter[:30]
+
+
+async def schluessel_abfragen(hass: HomeAssistant, schluessel: str) -> str:
+    """Fragt xAI nach dem Schlüssel (kostet nichts): „ok“, „abgelehnt (…)“ oder „gesperrt (…)“. Wirft, wenn xAI nicht antwortet."""
+    sitzung = async_get_clientsession(hass)
+    async with asyncio.timeout(15):
+        async with sitzung.get(SCHLUESSEL_URL, headers={"Authorization": "Bearer " + schluessel}) as r:
+            if r.status in (400, 401, 402, 403, 429):  # 402 und 429: Guthaben leer oder Ausgabengrenze erreicht
+                guthaben = _guthaben((await r.read()).decode("utf-8", "replace"))
+                return "abgelehnt (HTTP %d%s)" % (r.status, ", " + GUTHABEN if guthaben else "")
+            r.raise_for_status()
+            d = await r.json()
+            gesperrt = [k for k in ("api_key_blocked", "api_key_disabled", "team_blocked") if d.get(k)]
+            return "gesperrt (%s)" % ", ".join(gesperrt) if gesperrt else "ok"
 
 
 def _text(err: BaseException) -> str:
@@ -346,7 +381,7 @@ async def _schliessen(ws) -> None:
 
 
 class BleibenderGrund(RuntimeError):
-    """Ein Grund, aus dem auch der nächste Ruf scheitern würde (xAI lehnt die Sitzung ab, Anweisung fehlt oder ist nicht lesbar)."""
+    """Ein Grund, aus dem auch der nächste Ruf scheitern würde (xAI lehnt die Sitzung ab, Begrüßung oder Anweisung nicht lesbar)."""
 
 
 def gestoert(grund: str) -> bool:
@@ -801,6 +836,16 @@ class Ruf:
         if self.ws is not None:  # zuletzt: hängt die Leitung zu xAI, kämen Meldung und Tagebuch sonst erst Minuten später
             await _schliessen(self.ws)
 
+    def betrifft_bewohner(self) -> bool:
+        """Geht das Gespräch den Bewohner an? Er wurde gerufen, bekam eine Nachricht, oder ein Wort seines Namens fällt in der
+        Mitschrift. Danach entscheidet die Automation der Klingel, ob die Meldung aufs Handy geht (Gespräche nur über andere Bewohner
+        nicht; sein Wort vom 11.11.2026: „Die sollten überhaupt nicht zu mir kommen“)."""
+        if any(w in self.gerufen for w in ("bewohner_rufen", "nachricht_weitergeben")):
+            return True
+        text = "\n".join(self.protokoll).lower()
+        namen = [w.lower() for w in re.findall(r"[A-Za-zÀ-ÿ-]{3,}", str(einstellungen(self.hass).get("bewohner") or ""))]
+        return any(n in text for n in namen if n not in ("herr", "frau", "familie", "und"))
+
     def _ende_melden(self) -> None:
         """Einmal je Ruf: das ganze Gespräch und der Grund des Endes (die Automation der Klingel schickt es aufs Handy)."""
         if self.gemeldet:
@@ -812,24 +857,29 @@ class Ruf:
         sekunden = round(time.monotonic() - self.beginn)
         try:
             self.hass.bus.async_fire(EREIGNIS, {"ergebnis": "ende", "angenommen": self.angenommen, "sekunden": sekunden,
-                                                "grund": self.grund, "mitschrift": text})
+                                                "grund": self.grund, "mitschrift": text, "stoerung": gestoert(self.grund),
+                                                "betrifft_bewohner": self.betrifft_bewohner()})
         except Exception:  # noqa: BLE001  die Meldung darf das Aufräumen nie stören, muss aber sichtbar fehlen
             _LOGGER.warning("Grok Voice: Ende des Rufs nicht gemeldet", exc_info=True)
         try:
             self.b.merken({"beginn": self.uhr, "sekunden": sekunden, "angenommen": self.angenommen, "grund": self.grund,
                            "ton": "%s, %d ms" % (self.codec.name, self.ptime) if self.codec else "", "pakete_rein": self.pakete_rein,
                            "pakete_raus": self.pakete_raus, "luecke": round(self.luecke, 1), "dauerton": self.dauerton, "wartezeiten": self.wartezeiten,
-                           "werkzeuge": self.gerufen, "ablauf": self.ablauf, "mitschrift": self.protokoll})
+                           "werkzeuge": self.gerufen, "modell": self.b.modell_ist, "ablauf": self.ablauf, "mitschrift": self.protokoll})
         except Exception:  # noqa: BLE001  das Tagebuch auch nicht
             _LOGGER.warning("Grok Voice: Ruf nicht ins Tagebuch geschrieben", exc_info=True)
 
 
-async def _warte_auf_update(ws) -> None:
+async def _warte_auf_update(ws) -> str:
+    """Wartet, bis xAI die Sitzung angenommen hat; → das Modell, das xAI dafür nennt (leer, wenn es keins nennt)."""
+    modell = ""
     while True:
         nachricht = await ws.receive_json()
         art = nachricht.get("type")
+        if art in ("session.created", "session.updated") and isinstance(nachricht.get("session"), dict):
+            modell = sauber(nachricht["session"].get("model"), 60) or modell
         if art == "session.updated":
-            return
+            return modell
         if art == "error":  # xAI nimmt die Sitzung nicht an (z. B. Konto, Stimme): beim nächsten Ruf genauso
             meldung = str((nachricht.get("error") or {}).get("message"))
             raise BleibenderGrund("xAI: %s" % (GUTHABEN if _guthaben(meldung) else meldung[:120]))
@@ -854,9 +904,11 @@ class Bruecke(asyncio.DatagramProtocol):
     """Die Innenstation 9904: Anmeldung an der Station, Rufe von ihr, Gespräch mit xAI."""
 
     def __init__(self, hass: HomeAssistant, *, schluessel: str, station: str, kennung: str, passwort: str, port: int = 5062,
-                 station_port: int = 5060, stimme: str = "eve", mitschrift_speichern: bool = True) -> None:
+                 station_port: int = 5060, stimme: str = "eve", modell: str = VORGABEN["modell"], mitschrift_speichern: bool = True) -> None:
         self.hass, self.schluessel, self.station_name, self.kennung, self.passwort = hass, schluessel, station, kennung, passwort
         self.port, self.station_port, self.stimme, self.mitschrift_speichern = port, station_port, stimme, mitschrift_speichern
+        self.modell = modell  # gewünscht (Einstellungen), meist der Alias „grok-voice-latest“
+        self.modell_ist = ""  # was xAI zuletzt für eine Sitzung genannt hat (aus dem Tagebuch über Neustarts hinweg)
         self.station = ""  # ihre Adresse, bei jeder Anmeldung aus station_name bestimmt; bis dahin wird alles verworfen
         self.lokal = "0.0.0.0"
         self.transport = None
@@ -887,8 +939,23 @@ class Bruecke(asyncio.DatagramProtocol):
         self.rufe.append(eintrag)
         del self.rufe[:-RUFE_MERKEN]
         if self.speicher is not None:
-            self.speicher.async_delay_save(lambda: {"rufe": self.rufe}, 2)
+            self.speicher.async_delay_save(self.ablage, 2)
         _stand(self.hass, letzter_ruf="%s, %d s: %s" % (eintrag["beginn"][:16].replace("T", " "), eintrag["sekunden"], eintrag["grund"]))
+
+    def ablage(self) -> dict:
+        """Was in .storage/tuer_assistent.rufe steht: das Tagebuch und das zuletzt von xAI genannte Modell."""
+        return {"rufe": self.rufe, "modell": self.modell_ist}
+
+    def modell_merken(self, modell: str) -> None:
+        """Das Modell, das xAI für diese Sitzung nennt; ein Wechsel steht einmal als Warnung im Log."""
+        if not modell or modell == self.modell_ist:
+            return
+        if self.modell_ist:
+            _LOGGER.warning("Grok Voice: xAI nutzt jetzt das Modell %s (bisher %s)", modell, self.modell_ist)
+        self.modell_ist = modell
+        _stand(self.hass, modell=modell)
+        if self.speicher is not None:
+            self.speicher.async_delay_save(self.ablage, 2)
 
     def _reparatur(self, kennung: str, grund: str = "") -> None:
         """Hinweis unter Einstellungen → Reparaturen setzen (mit Grund) oder löschen (ohne)."""
@@ -904,30 +971,28 @@ class Bruecke(asyncio.DatagramProtocol):
     # --- xAI ----------------------------------------------------------------------------------------------------------------
     async def verbinden(self):
         sitzung = async_get_clientsession(self.hass)
-        return await sitzung.ws_connect(URL, headers={"Authorization": "Bearer " + self.schluessel}, heartbeat=20, max_msg_size=0)
+        return await sitzung.ws_connect(URL + quote(self.modell, safe=""), headers={"Authorization": "Bearer " + self.schluessel},
+                                        heartbeat=20, max_msg_size=0)
 
     async def verbinden_und_anweisen(self, format_: dict):
         """Verbindung zu xAI mit Anweisung, Stimme, Werkzeugen und Tonformat; → (Verbindung, Begrüßung)."""
-        vorlage = anweisung_vorlage(self.hass)
-        if not vorlage:
-            raise BleibenderGrund("keine Anweisung gefunden")
+        e = einstellungen(self.hass)
         try:
-            anweisung = Template(vorlage, self.hass).async_render({"grok_voice": True}, parse_result=False)
+            gruss, anweisung = texte(self.hass, e)
         except TemplateError as err:  # nur die Art: Der Text des Fehlers zitiert eine Zeile der Anweisung (Namen) in Log, Tagebuch, Diagnose
-            raise BleibenderGrund("Anweisung nicht lesbar (%s)" % type(err.__cause__ or err).__name__) from None
-        treffer = re.search(r"„(Hello,[^“]*)“", anweisung)
+            raise BleibenderGrund("Begrüßung oder Anweisung nicht lesbar (%s)" % type(err.__cause__ or err).__name__) from None
         ws = await self.verbinden()
         try:
             await ws.send_json({"type": "session.update", "session": {
                 "instructions": anweisung, "voice": self.stimme, "reasoning": {"effort": "high"},
                 "turn_detection": {"type": "server_vad"}, "tools": werkzeug_schemas(self.hass),
-                "audio": {"input": {"format": format_, "transcription": {"keyterms": namen(self.hass), "language_hint": SPRACHE}},
+                "audio": {"input": {"format": format_, "transcription": {"keyterms": stichwoerter(e), "language_hint": SPRACHE}},
                           "output": {"format": format_}}}})
-            await _warte_auf_update(ws)
+            self.modell_merken(await _warte_auf_update(ws))
         except BaseException:  # nicht auf das Schließen warten: Die 503 an die Station geht sonst erst nach VERBINDEN s plus Schließen
             self.hass.async_create_background_task(_schliessen(ws), "tuer_assistent xAI schließen")
             raise
-        return ws, treffer.group(1) if treffer else BEGRUESSUNG
+        return ws, gruss
 
     # --- Überwachung -------------------------------------------------------------------------------------------------------
     def stoerung(self) -> str:
@@ -963,18 +1028,8 @@ class Bruecke(asyncio.DatagramProtocol):
         _stand(self.hass, xai=zustand)
 
     async def schluessel_pruefen(self) -> None:
-        sitzung = async_get_clientsession(self.hass)
         try:
-            async with asyncio.timeout(15):
-                async with sitzung.get(SCHLUESSEL_URL, headers={"Authorization": "Bearer " + self.schluessel}) as r:
-                    if r.status in (400, 401, 402, 403, 429):  # 402 und 429: Guthaben leer oder Ausgabengrenze erreicht
-                        guthaben = _guthaben((await r.read()).decode("utf-8", "replace"))
-                        zustand = "abgelehnt (HTTP %d%s)" % (r.status, ", " + GUTHABEN if guthaben else "")
-                    else:
-                        r.raise_for_status()
-                        d = await r.json()
-                        gesperrt = [k for k in ("api_key_blocked", "api_key_disabled", "team_blocked") if d.get(k)]
-                        zustand = "gesperrt (%s)" % ", ".join(gesperrt) if gesperrt else "ok"
+            zustand = await schluessel_abfragen(self.hass, self.schluessel)
         except Exception as err:  # noqa: BLE001  nicht erreichbar zählt erst nach XAI_STILL als Störung
             if not self.xai.startswith(("abgelehnt", "gesperrt")):  # ohne Antwort bleibt ein bekanntes Problem stehen (kein Flackern)
                 self.xai = "nicht erreichbar (%s)" % ("HTTP %d" % err.status if isinstance(err, aiohttp.ClientResponseError) else type(err).__name__)
@@ -1196,9 +1251,9 @@ class Bruecke(asyncio.DatagramProtocol):
         self.ruf.auflegen()
         return True
 
-    async def stoppen(self) -> None:
+    async def stoppen(self, grund: str = "Home Assistant hält an") -> None:
         if self.ruf is not None:
-            await self.ruf.beenden("Home Assistant hält an")
+            await self.ruf.beenden(grund)
         for aufgabe in (self.anmeldung, self.pruefung):
             if aufgabe is not None:
                 aufgabe.cancel()
@@ -1213,20 +1268,23 @@ class Bruecke(asyncio.DatagramProtocol):
             aufgabe.cancel()
         if self.transport is not None:
             self.transport.close()
+            await asyncio.sleep(0)  # der Sockel schließt erst im nächsten Durchlauf; ein Neustart (neue Einstellungen) bindet den Port gleich
+        if self.speicher is not None:  # gleich schreiben: Nach einem Neustart liest die neue Innenstation das Tagebuch sofort
+            await self.speicher.async_save(self.ablage())
 
 
-async def async_starten(hass: HomeAssistant, einstellungen: dict) -> Bruecke | None:
+async def async_starten(hass: HomeAssistant, werte: dict) -> Bruecke | None:
     """Startet die Innenstation; ohne Schlüssel, Station oder Passwort oder bei belegtem Port nicht (dann bleibt der Knopf stumm). Ist
     der Name der Station noch nicht auflösbar, startet sie trotzdem; die Anmeldung versucht es weiter (Störung nach MELDEN_NACH s)."""
-    werte = {k: str(einstellungen.get(k) or "").strip() for k in ("schluessel", "station", "kennung", "passwort", "stimme")}
-    fehlt = [k for k in ("schluessel", "station", "passwort") if not werte[k]]
+    text = {k: str(werte.get(k) or "").strip() for k in ("schluessel", "station", "kennung", "passwort", "stimme", "modell")}
+    fehlt = [k for k in ("schluessel", "station", "passwort") if not text[k]]
     if fehlt:
-        _LOGGER.warning("Grok Voice: es fehlt %s in configuration.yaml; ohne Grok Voice weiter", ", ".join(fehlt))
+        _LOGGER.warning("Grok Voice: es fehlt %s in den Einstellungen; ohne Grok Voice weiter", ", ".join(fehlt))
         return None
-    bruecke = Bruecke(hass, schluessel=werte["schluessel"], station=werte["station"], kennung=werte["kennung"] or "9904",
-                      passwort=werte["passwort"], port=int(einstellungen.get("port") or 5062),
-                      station_port=int(einstellungen.get("station_port") or 5060), stimme=werte["stimme"] or "eve",
-                      mitschrift_speichern=bool(einstellungen.get("mitschrift_speichern", True)))
+    bruecke = Bruecke(hass, schluessel=text["schluessel"], station=text["station"], kennung=text["kennung"] or VORGABEN["kennung"],
+                      passwort=text["passwort"], port=int(werte.get("port") or VORGABEN["port"]),
+                      station_port=int(werte.get("station_port") or VORGABEN["station_port"]), stimme=text["stimme"] or VORGABEN["stimme"],
+                      modell=text["modell"] or VORGABEN["modell"], mitschrift_speichern=bool(werte.get("mitschrift_speichern", True)))
     try:
         await asyncio.get_running_loop().create_datagram_endpoint(lambda: bruecke, local_addr=("0.0.0.0", bruecke.port))
     except OSError as err:
@@ -1234,7 +1292,11 @@ async def async_starten(hass: HomeAssistant, einstellungen: dict) -> Bruecke | N
         return None
     bruecke.speicher = Store(hass, 1, DOMAIN + ".rufe")
     try:
-        bruecke.rufe = [r for r in list((await bruecke.speicher.async_load() or {}).get("rufe") or [])[-RUFE_MERKEN:] if isinstance(r, dict)]
+        ablage = await bruecke.speicher.async_load() or {}
+        bruecke.rufe = [r for r in list(ablage.get("rufe") or [])[-RUFE_MERKEN:] if isinstance(r, dict)]
+        bruecke.modell_ist = sauber(ablage.get("modell"), 60)
+        if bruecke.modell_ist:
+            _stand(hass, modell=bruecke.modell_ist)
     except Exception:  # noqa: BLE001  ohne altes Tagebuch beginnt ein neues
         _LOGGER.warning("Grok Voice: Tagebuch der Rufe nicht lesbar, es beginnt neu", exc_info=True)
     if bruecke.mitschrift_speichern:  # Hinweis unter Reparaturen; ignoriert er ihn, bleibt er ignoriert (auch nach Neustarts)
@@ -1244,7 +1306,7 @@ async def async_starten(hass: HomeAssistant, einstellungen: dict) -> Bruecke | N
         ir.async_delete_issue(hass, DOMAIN, "mitschriften")
         if any("mitschrift" in r for r in bruecke.rufe):
             bruecke.rufe = [{k: v for k, v in r.items() if k != "mitschrift"} for r in bruecke.rufe]
-            bruecke.speicher.async_delay_save(lambda: {"rufe": bruecke.rufe}, 0)
+            bruecke.speicher.async_delay_save(bruecke.ablage, 0)
     bruecke.anmeldung = hass.async_create_background_task(bruecke.anmelden_dauernd(), "tuer_assistent Anmeldung")
     bruecke.pruefung = hass.async_create_background_task(bruecke.schluessel_dauernd(), "tuer_assistent Schlüssel")
     _LOGGER.info("Grok Voice: Innenstation %s auf Port %s", bruecke.kennung, bruecke.port)

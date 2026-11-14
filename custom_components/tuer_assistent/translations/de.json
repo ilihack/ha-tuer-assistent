@@ -1,21 +1,187 @@
 {
   "config": {
+    "step": {
+      "user": {
+        "title": "Tür-Assistent (Empfang)",
+        "description": "Der Empfang meldet sich als eigene Innenstation an der Türstation an und spricht mit Besuchern (Sprache zu Sprache mit xAI Grok Voice). Oben stehen die Namen, darunter Begrüßung und Anweisung und die Zugänge zu xAI und zur Türstation.",
+        "data": {
+          "mitschrift_speichern": "Mitschrift speichern"
+        },
+        "data_description": {
+          "mitschrift_speichern": "Die letzten Rufe mit Mitschrift in .storage/tuer_assistent.rufe festhalten. Aus: ohne Mitschrift, auch in den schon gespeicherten."
+        },
+        "sections": {
+          "namen": {
+            "name": "Bewohner und Namen",
+            "description": "Für wen der Empfang arbeitet und wer sonst im Haus wohnt.",
+            "data": {
+              "bewohner": "Bewohner",
+              "anrede": "Anrede",
+              "angaben": "Angaben"
+            },
+            "data_description": {
+              "bewohner": "Vor- und Nachname dessen, für den der Empfang arbeitet: Ihm gibt er Bescheid und für ihn nimmt er Nachrichten an. In der Anweisung die Variable bewohner.",
+              "anrede": "Wie die Werkzeuge ihn nennen: „Herrn Muster“, „Frau Muster“, „Familie Muster“ oder ohne Anrede der ganze Name. Die mitgelieferte Anweisung nennt ihn „Herr“ mit Nachnamen; für eine andere Anrede dort den Text anpassen.",
+              "angaben": "Je Zeile „name: wert“, zum Beispiel die Namen an den anderen Klingeln. Jede Zeile wird eine Variable der Anweisung: „dachgeschoss: Familie Beispiel“ steht dort als Variable dachgeschoss. Der Name vor dem Doppelpunkt nur aus Buchstaben ohne Umlaute, Ziffern und Unterstrich; der Wert ist Text und wird nie ausgeführt."
+            }
+          },
+          "texte": {
+            "name": "Begrüßung und Anweisung",
+            "description": "Was der Empfang als Erstes sagt und wie er sich verhält. Beides sind Vorlagen, bei jedem Ruf neu gerendert. Vorbelegt ist die mitgelieferte Vorgabe; unverändert oder leer gespeichert gilt sie weiter, auch die einer späteren Version.",
+            "data": {
+              "begruessung": "Begrüßung",
+              "anweisung": "Anweisung"
+            },
+            "data_description": {
+              "begruessung": "Der erste Satz des Empfangs, wörtlich gesprochen. In der Anweisung die Variable begruessung.",
+              "anweisung": "Der Prompt. Variablen: bewohner, anrede, begruessung und je Zeile der Angaben eine. Eine Variable, die es nicht gibt, ist ein Fehler; mit dem Filter „default“ darf sie fehlen."
+            }
+          },
+          "xai": {
+            "name": "xAI (Grok Voice)",
+            "data": {
+              "schluessel": "xAI-Schlüssel",
+              "modell": "Modell",
+              "stimme": "Stimme",
+              "stichwoerter": "Stichwörter für die Erkennung"
+            },
+            "data_description": {
+              "schluessel": "API-Schlüssel aus dem xAI-Konto.",
+              "modell": "„grok-voice-latest“ folgt den Aktualisierungen von xAI; ein Name mit Version legt es fest. Welches Modell xAI wirklich nimmt, zeigt der Stand.",
+              "stimme": "Name der Stimme bei xAI, zum Beispiel eve.",
+              "stichwoerter": "Wörter, die die Erkennung kennen soll, durch Komma getrennt. Die großgeschriebenen Wörter aus „Bewohner“ und „Angaben“ (die Namen) kommen von selbst dazu."
+            }
+          },
+          "station": {
+            "name": "Türstation",
+            "data": {
+              "station": "Türstation",
+              "kennung": "Nebenstelle",
+              "passwort": "Passwort der Nebenstelle",
+              "port": "Eigener SIP-Port",
+              "station_port": "SIP-Port der Türstation"
+            },
+            "data_description": {
+              "station": "Name oder Adresse der Türstation im Hausnetz.",
+              "kennung": "Nummer der Innenstation, als die sich der Empfang an der Türstation anmeldet; an der Türstation muss es sie geben.",
+              "passwort": "Passwort dieser Innenstation an der Türstation.",
+              "port": "UDP-Port, auf dem der Empfang die Rufe der Türstation annimmt.",
+              "station_port": "SIP-Port der Türstation."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "leer": "„{feld}“ darf nicht leer sein.",
+      "schluessel_fehlt": "Der xAI-Schlüssel fehlt (Abschnitt xAI).",
+      "passwort_fehlt": "Das Passwort der Nebenstelle fehlt (Abschnitt Türstation).",
+      "angaben": "Angaben, Zeile {zeile}: erwartet wird „name: wert“ mit einem Namen aus Buchstaben ohne Umlaute, Ziffern und Unterstrich, der nicht doppelt und nicht bewohner, anrede, begruessung oder grok_voice ist.",
+      "vorlage": "Begrüßung oder Anweisung lässt sich nicht rendern: {grund}",
+      "schluessel": "xAI nimmt den Schlüssel nicht an: {grund}"
+    },
     "abort": {
-      "single_instance_allowed": "Den Tür-Assistenten gibt es nur einmal. Er entsteht aus der Zeile „tuer_assistent:“ in configuration.yaml."
+      "single_instance_allowed": "Den Tür-Assistenten gibt es nur einmal; seine Einstellungen stehen am Eintrag unter „Konfigurieren“."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tür-Assistent (Empfang)",
+        "description": "Stand: {stand}. Namen, Begrüßung und Anweisung gelten ab dem nächsten Ruf. Ändert sich etwas an xAI, der Türstation oder „Mitschrift speichern“, startet der Empfang neu; ein laufender Ruf endet dabei. Schlüssel und Passwort werden nie angezeigt: leer lassen, dann bleiben sie, wie sie sind.",
+        "data": {
+          "mitschrift_speichern": "Mitschrift speichern"
+        },
+        "data_description": {
+          "mitschrift_speichern": "Die letzten Rufe mit Mitschrift in .storage/tuer_assistent.rufe festhalten. Aus: ohne Mitschrift, auch in den schon gespeicherten."
+        },
+        "sections": {
+          "namen": {
+            "name": "Bewohner und Namen",
+            "description": "Für wen der Empfang arbeitet und wer sonst im Haus wohnt.",
+            "data": {
+              "bewohner": "Bewohner",
+              "anrede": "Anrede",
+              "angaben": "Angaben"
+            },
+            "data_description": {
+              "bewohner": "Vor- und Nachname dessen, für den der Empfang arbeitet: Ihm gibt er Bescheid und für ihn nimmt er Nachrichten an. In der Anweisung die Variable bewohner.",
+              "anrede": "Wie die Werkzeuge ihn nennen: „Herrn Muster“, „Frau Muster“, „Familie Muster“ oder ohne Anrede der ganze Name. Die mitgelieferte Anweisung nennt ihn „Herr“ mit Nachnamen; für eine andere Anrede dort den Text anpassen.",
+              "angaben": "Je Zeile „name: wert“, zum Beispiel die Namen an den anderen Klingeln. Jede Zeile wird eine Variable der Anweisung: „dachgeschoss: Familie Beispiel“ steht dort als Variable dachgeschoss. Der Name vor dem Doppelpunkt nur aus Buchstaben ohne Umlaute, Ziffern und Unterstrich; der Wert ist Text und wird nie ausgeführt."
+            }
+          },
+          "texte": {
+            "name": "Begrüßung und Anweisung",
+            "description": "Was der Empfang als Erstes sagt und wie er sich verhält. Beides sind Vorlagen, bei jedem Ruf neu gerendert. Vorbelegt ist die mitgelieferte Vorgabe; unverändert oder leer gespeichert gilt sie weiter, auch die einer späteren Version.",
+            "data": {
+              "begruessung": "Begrüßung",
+              "anweisung": "Anweisung"
+            },
+            "data_description": {
+              "begruessung": "Der erste Satz des Empfangs, wörtlich gesprochen. In der Anweisung die Variable begruessung.",
+              "anweisung": "Der Prompt. Variablen: bewohner, anrede, begruessung und je Zeile der Angaben eine. Eine Variable, die es nicht gibt, ist ein Fehler; mit dem Filter „default“ darf sie fehlen."
+            }
+          },
+          "xai": {
+            "name": "xAI (Grok Voice)",
+            "data": {
+              "schluessel": "xAI-Schlüssel",
+              "modell": "Modell",
+              "stimme": "Stimme",
+              "stichwoerter": "Stichwörter für die Erkennung"
+            },
+            "data_description": {
+              "schluessel": "API-Schlüssel aus dem xAI-Konto. Leer lassen: bleibt unverändert.",
+              "modell": "„grok-voice-latest“ folgt den Aktualisierungen von xAI; ein Name mit Version legt es fest. Welches Modell xAI wirklich nimmt, zeigt der Stand.",
+              "stimme": "Name der Stimme bei xAI, zum Beispiel eve.",
+              "stichwoerter": "Wörter, die die Erkennung kennen soll, durch Komma getrennt. Die großgeschriebenen Wörter aus „Bewohner“ und „Angaben“ (die Namen) kommen von selbst dazu."
+            }
+          },
+          "station": {
+            "name": "Türstation",
+            "data": {
+              "station": "Türstation",
+              "kennung": "Nebenstelle",
+              "passwort": "Passwort der Nebenstelle",
+              "port": "Eigener SIP-Port",
+              "station_port": "SIP-Port der Türstation"
+            },
+            "data_description": {
+              "station": "Name oder Adresse der Türstation im Hausnetz.",
+              "kennung": "Nummer der Innenstation, als die sich der Empfang an der Türstation anmeldet; an der Türstation muss es sie geben.",
+              "passwort": "Passwort dieser Innenstation an der Türstation. Leer lassen: bleibt unverändert.",
+              "port": "UDP-Port, auf dem der Empfang die Rufe der Türstation annimmt.",
+              "station_port": "SIP-Port der Türstation."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "leer": "„{feld}“ darf nicht leer sein.",
+      "schluessel_fehlt": "Der xAI-Schlüssel fehlt (Abschnitt xAI).",
+      "passwort_fehlt": "Das Passwort der Nebenstelle fehlt (Abschnitt Türstation).",
+      "angaben": "Angaben, Zeile {zeile}: erwartet wird „name: wert“ mit einem Namen aus Buchstaben ohne Umlaute, Ziffern und Unterstrich, der nicht doppelt und nicht bewohner, anrede, begruessung oder grok_voice ist.",
+      "vorlage": "Begrüßung oder Anweisung lässt sich nicht rendern: {grund}",
+      "schluessel": "xAI nimmt den Schlüssel nicht an: {grund}"
     }
   },
   "issues": {
     "xai_schluessel": {
       "title": "Empfang: xAI-Schlüssel {grund}",
-      "description": "Der oberste Knopf der Sprechanlage geht nicht: xAI nimmt den Schlüssel nicht an ({grund}).\n\nIm xAI-Konto prüfen, ob der Schlüssel noch gilt und das Guthaben reicht. Einen neuen Schlüssel in `secrets.yaml` unter `xai_api_key` eintragen und Home Assistant neu starten. Der Hinweis verschwindet von selbst, sobald die stündliche Prüfung wieder gelingt."
+      "description": "Der oberste Knopf der Sprechanlage geht nicht: xAI nimmt den Schlüssel nicht an ({grund}).\n\nIm xAI-Konto prüfen, ob der Schlüssel noch gilt und das Guthaben reicht. Einen neuen Schlüssel unter Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren eintragen; Grok Voice startet dann neu. Der Hinweis verschwindet von selbst, sobald die Prüfung (beim Start, dann stündlich) wieder gelingt."
     },
     "station_anmeldung": {
       "title": "Empfang: an der Türstation nicht angemeldet",
-      "description": "Der oberste Knopf der Sprechanlage geht nicht: Die Anmeldung als Innenstation scheitert ({grund}).\n\nPrüfen, ob die Türstation läuft und erreichbar ist und ob das Passwort der Innenstation in `secrets.yaml` (`vto_9904_passwort`) zu dem an der Station passt. Die Integration versucht es jede Minute neu; der Hinweis verschwindet von selbst, sobald es wieder geht."
+      "description": "Der oberste Knopf der Sprechanlage geht nicht: Die Anmeldung als Innenstation scheitert ({grund}).\n\nPrüfen, ob die Türstation läuft und erreichbar ist und ob Nebenstelle und Passwort unter Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren zu denen an der Station passen. Die Integration versucht es jede Minute neu; der Hinweis verschwindet von selbst, sobald es wieder geht."
     },
     "mitschriften": {
       "title": "Empfang: Mitschriften werden gespeichert",
-      "description": "Der Tür-Assistent hält die letzten {anzahl} Rufe in `.storage/tuer_assistent.rufe` fest, mit Mitschrift: was Besucher und Empfang gesagt haben. Die Datei ist unverschlüsselt und steckt in jeder Sicherung von Home Assistant. Die Mitschriften stehen außerdem in den Ereignissen der Integration, die die Ereignis-Datenbank (Recorder) aufhebt, standardmäßig 10 Tage.\n\nSo bleibt es, wenn du nichts tust. Ohne Mitschrift im Tagebuch: in `configuration.yaml` unter `tuer_assistent:` → `grok_voice:` die Zeile `mitschrift_speichern: false` und neu starten. Aus der Ereignis-Datenbank hält sie `recorder:` → `exclude:` → `event_types:` mit `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` und `tuer_assistent_werkzeug` heraus. Diesen Hinweis kannst du ignorieren; er kommt dann nicht wieder."
+      "description": "Der Tür-Assistent hält die letzten {anzahl} Rufe in `.storage/tuer_assistent.rufe` fest, mit Mitschrift: was Besucher und Empfang gesagt haben. Die Datei ist unverschlüsselt und steckt in jeder Sicherung von Home Assistant. Die Mitschriften stehen außerdem in den Ereignissen der Integration, die die Ereignis-Datenbank (Recorder) aufhebt, standardmäßig 10 Tage.\n\nSo bleibt es, wenn du nichts tust. Ohne Mitschrift im Tagebuch: unter Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren „Mitschrift speichern“ ausschalten. Aus der Ereignis-Datenbank hält sie `recorder:` → `exclude:` → `event_types:` mit `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` und `tuer_assistent_werkzeug` heraus. Diesen Hinweis kannst du ignorieren; er kommt dann nicht wieder."
+    },
+    "grok_voice_yaml": {
+      "title": "Empfang: Block grok_voice in configuration.yaml kann weg",
+      "description": "Grok Voice ist jetzt in der Oberfläche eingerichtet: Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren. Dort gelten Schlüssel, Türstation, Passwort und die übrigen Werte; der Block `grok_voice:` unter `tuer_assistent:` in `configuration.yaml` wird ignoriert und kann weg (die Zeile `tuer_assistent:` mit `agenten:` bleibt). Die Einträge dafür in `secrets.yaml` nur löschen, wenn sie sonst nichts braucht. Nach dem nächsten Neustart ohne den Block verschwindet dieser Hinweis."
     }
   },
   "entity": {

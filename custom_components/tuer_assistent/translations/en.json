@@ -1,21 +1,187 @@
 {
   "config": {
+    "step": {
+      "user": {
+        "title": "Door assistant (reception)",
+        "description": "The reception registers as an indoor station of its own at the door station and talks to visitors (speech to speech with xAI Grok Voice). Names are at the top, followed by greeting and instructions and the access to xAI and the door station.",
+        "data": {
+          "mitschrift_speichern": "Store transcripts"
+        },
+        "data_description": {
+          "mitschrift_speichern": "Keep the last calls with their transcript in .storage/tuer_assistent.rufe. Off: without transcript, also in calls already stored."
+        },
+        "sections": {
+          "namen": {
+            "name": "Resident and names",
+            "description": "Who the reception works for and who else lives in the house.",
+            "data": {
+              "bewohner": "Resident",
+              "anrede": "Form of address",
+              "angaben": "Details"
+            },
+            "data_description": {
+              "bewohner": "First and last name of the person the reception works for: it notifies them and takes messages for them. In the instructions: the variable bewohner.",
+              "anrede": "How the tools refer to them: “Herrn Muster”, “Frau Muster”, “Familie Muster”, or the full name without a title. The built-in instructions call them “Herr” plus last name; for another form of address adapt the text there.",
+              "angaben": "One “name: value” per line, for example the names on the other bells. Each line becomes a variable of the instructions: “dachgeschoss: Familie Beispiel” is available as the variable dachgeschoss. The name before the colon may only use ASCII letters, digits and underscore; the value is plain text and is never executed."
+            }
+          },
+          "texte": {
+            "name": "Greeting and instructions",
+            "description": "What the reception says first and how it behaves. Both are templates, rendered for every call. They are prefilled with the built-in default; saved unchanged or empty, the default keeps applying, including that of a later version.",
+            "data": {
+              "begruessung": "Greeting",
+              "anweisung": "Instructions"
+            },
+            "data_description": {
+              "begruessung": "The first sentence of the reception, spoken verbatim. In the instructions: the variable begruessung.",
+              "anweisung": "The prompt. Variables: bewohner, anrede, begruessung and one per line of the details. A variable that does not exist is an error; with the “default” filter it may be missing."
+            }
+          },
+          "xai": {
+            "name": "xAI (Grok Voice)",
+            "data": {
+              "schluessel": "xAI API key",
+              "modell": "Model",
+              "stimme": "Voice",
+              "stichwoerter": "Key terms for recognition"
+            },
+            "data_description": {
+              "schluessel": "API key from the xAI account.",
+              "modell": "“grok-voice-latest” follows the updates by xAI; a versioned name pins it. The status shows which model xAI actually uses.",
+              "stimme": "Name of the voice at xAI, for example eve.",
+              "stichwoerter": "Words the recognition should know, separated by commas. Capitalised words from “Resident” and “Details” (the names) are added automatically."
+            }
+          },
+          "station": {
+            "name": "Door station",
+            "data": {
+              "station": "Door station",
+              "kennung": "Extension",
+              "passwort": "Extension password",
+              "port": "Own SIP port",
+              "station_port": "SIP port of the door station"
+            },
+            "data_description": {
+              "station": "Name or address of the door station in the home network.",
+              "kennung": "Number of the indoor station the reception registers as; it must exist at the door station.",
+              "passwort": "Password of this indoor station at the door station.",
+              "port": "UDP port on which the reception accepts calls from the door station.",
+              "station_port": "SIP port of the door station."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "leer": "“{feld}” must not be empty.",
+      "schluessel_fehlt": "The xAI API key is missing (section xAI).",
+      "passwort_fehlt": "The extension password is missing (section Door station).",
+      "angaben": "Details, line {zeile}: expected “name: value” with a name of ASCII letters, digits and underscore that is not a duplicate and not bewohner, anrede, begruessung or grok_voice.",
+      "vorlage": "Greeting or instructions cannot be rendered: {grund}",
+      "schluessel": "xAI does not accept the key: {grund}"
+    },
     "abort": {
-      "single_instance_allowed": "There is only one door assistant. It is created from the line \"tuer_assistent:\" in configuration.yaml."
+      "single_instance_allowed": "There is only one door assistant; its settings are under \"Configure\" on its entry."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Door assistant (reception)",
+        "description": "Status: {stand}. Names, greeting and instructions apply from the next call. A change to xAI, the door station or “Store transcripts” restarts the reception; a call in progress ends. Key and password are never shown: leave them empty to keep them.",
+        "data": {
+          "mitschrift_speichern": "Store transcripts"
+        },
+        "data_description": {
+          "mitschrift_speichern": "Keep the last calls with their transcript in .storage/tuer_assistent.rufe. Off: without transcript, also in calls already stored."
+        },
+        "sections": {
+          "namen": {
+            "name": "Resident and names",
+            "description": "Who the reception works for and who else lives in the house.",
+            "data": {
+              "bewohner": "Resident",
+              "anrede": "Form of address",
+              "angaben": "Details"
+            },
+            "data_description": {
+              "bewohner": "First and last name of the person the reception works for: it notifies them and takes messages for them. In the instructions: the variable bewohner.",
+              "anrede": "How the tools refer to them: “Herrn Muster”, “Frau Muster”, “Familie Muster”, or the full name without a title. The built-in instructions call them “Herr” plus last name; for another form of address adapt the text there.",
+              "angaben": "One “name: value” per line, for example the names on the other bells. Each line becomes a variable of the instructions: “dachgeschoss: Familie Beispiel” is available as the variable dachgeschoss. The name before the colon may only use ASCII letters, digits and underscore; the value is plain text and is never executed."
+            }
+          },
+          "texte": {
+            "name": "Greeting and instructions",
+            "description": "What the reception says first and how it behaves. Both are templates, rendered for every call. They are prefilled with the built-in default; saved unchanged or empty, the default keeps applying, including that of a later version.",
+            "data": {
+              "begruessung": "Greeting",
+              "anweisung": "Instructions"
+            },
+            "data_description": {
+              "begruessung": "The first sentence of the reception, spoken verbatim. In the instructions: the variable begruessung.",
+              "anweisung": "The prompt. Variables: bewohner, anrede, begruessung and one per line of the details. A variable that does not exist is an error; with the “default” filter it may be missing."
+            }
+          },
+          "xai": {
+            "name": "xAI (Grok Voice)",
+            "data": {
+              "schluessel": "xAI API key",
+              "modell": "Model",
+              "stimme": "Voice",
+              "stichwoerter": "Key terms for recognition"
+            },
+            "data_description": {
+              "schluessel": "API key from the xAI account. Leave empty to keep it.",
+              "modell": "“grok-voice-latest” follows the updates by xAI; a versioned name pins it. The status shows which model xAI actually uses.",
+              "stimme": "Name of the voice at xAI, for example eve.",
+              "stichwoerter": "Words the recognition should know, separated by commas. Capitalised words from “Resident” and “Details” (the names) are added automatically."
+            }
+          },
+          "station": {
+            "name": "Door station",
+            "data": {
+              "station": "Door station",
+              "kennung": "Extension",
+              "passwort": "Extension password",
+              "port": "Own SIP port",
+              "station_port": "SIP port of the door station"
+            },
+            "data_description": {
+              "station": "Name or address of the door station in the home network.",
+              "kennung": "Number of the indoor station the reception registers as; it must exist at the door station.",
+              "passwort": "Password of this indoor station at the door station. Leave empty to keep it.",
+              "port": "UDP port on which the reception accepts calls from the door station.",
+              "station_port": "SIP port of the door station."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "leer": "“{feld}” must not be empty.",
+      "schluessel_fehlt": "The xAI API key is missing (section xAI).",
+      "passwort_fehlt": "The extension password is missing (section Door station).",
+      "angaben": "Details, line {zeile}: expected “name: value” with a name of ASCII letters, digits and underscore that is not a duplicate and not bewohner, anrede, begruessung or grok_voice.",
+      "vorlage": "Greeting or instructions cannot be rendered: {grund}",
+      "schluessel": "xAI does not accept the key: {grund}"
     }
   },
   "issues": {
     "xai_schluessel": {
       "title": "Reception: xAI key {grund}",
-      "description": "The top button of the door station does not work: xAI does not accept the key ({grund}).\n\nCheck in the xAI account that the key is still valid and credit is left. Put a new key into `secrets.yaml` as `xai_api_key` and restart Home Assistant. This notice disappears by itself once the hourly check succeeds again."
+      "description": "The top button of the door station does not work: xAI does not accept the key ({grund}).\n\nCheck in the xAI account that the key is still valid and credit is left. Enter a new key under Settings → Devices & services → Tür-Assistent → Configure; Grok Voice then restarts. This notice disappears by itself once the check (at start, then hourly) succeeds again."
     },
     "station_anmeldung": {
       "title": "Reception: not registered at the door station",
-      "description": "The top button of the door station does not work: registering as an indoor station fails ({grund}).\n\nCheck that the door station is running and reachable and that the indoor station password in `secrets.yaml` (`vto_9904_passwort`) matches the one at the station. The integration retries every minute; this notice disappears by itself once it works again."
+      "description": "The top button of the door station does not work: registering as an indoor station fails ({grund}).\n\nCheck that the door station is running and reachable and that extension and password under Settings → Devices & services → Tür-Assistent → Configure match the ones at the station. The integration retries every minute; this notice disappears by itself once it works again."
     },
     "mitschriften": {
       "title": "Reception: transcripts are stored",
-      "description": "The door assistant keeps the last {anzahl} calls in `.storage/tuer_assistent.rufe`, including the transcript of what visitor and reception said. The file is not encrypted and is part of every Home Assistant backup. The transcripts are also contained in the integration's events, which the recorder keeps (10 days by default).\n\nNothing changes if you do nothing. To keep transcripts out of the journal, add `mitschrift_speichern: false` under `tuer_assistent:` → `grok_voice:` in `configuration.yaml` and restart. To keep them out of the recorder, exclude the event types `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` and `tuer_assistent_werkzeug` under `recorder:` → `exclude:` → `event_types:`. You can ignore this notice; it will not come back."
+      "description": "The door assistant keeps the last {anzahl} calls in `.storage/tuer_assistent.rufe`, including the transcript of what visitor and reception said. The file is not encrypted and is part of every Home Assistant backup. The transcripts are also contained in the integration's events, which the recorder keeps (10 days by default).\n\nNothing changes if you do nothing. To keep transcripts out of the journal, turn off \"Store transcripts\" under Settings → Devices & services → Tür-Assistent → Configure. To keep them out of the recorder, exclude the event types `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` and `tuer_assistent_werkzeug` under `recorder:` → `exclude:` → `event_types:`. You can ignore this notice; it will not come back."
+    },
+    "grok_voice_yaml": {
+      "title": "Reception: the grok_voice block in configuration.yaml can go",
+      "description": "Grok Voice is now set up in the user interface: Settings → Devices & services → Tür-Assistent → Configure. Key, door station, password and the other values apply from there; the block `grok_voice:` under `tuer_assistent:` in `configuration.yaml` is ignored and can be removed (the line `tuer_assistent:` with `agenten:` stays). Remove the entries for it in `secrets.yaml` only if nothing else needs them. This notice disappears after the next restart without the block."
     }
   },
   "entity": {

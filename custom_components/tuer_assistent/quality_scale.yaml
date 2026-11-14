@@ -1,12 +1,11 @@
-# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 14.11.2026, Version 2.5.0).
+# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 14.11.2026, Version 2.6.0).
 # Eigene Integrationen bekommen keine Stufe; die Regeln dienen hier als Prüfliste (Wort des Betreibers vom 12.11.2026: „Schau auch, was Home
 # Assistant für Gold-Integration verlangt und was davon sinnvoll für uns ist“; dann: „wenn es nicht komplex ist, können wir die
-# anderen Qualitätsmerkmale integrieren“). Offen sind die Testabdeckung und, was eine Einrichtung über die Oberfläche braucht
-# (config-flow und die fünf Regeln, die daran hängen): Das ist eine eigene Entscheidung, weil Schlüssel und Passwort dann nicht mehr in
-# secrets.yaml stehen.
+# anderen Qualitätsmerkmale integrieren“). Offen ist die Testabdeckung der Module des alten Text-Wegs. Alle Einstellungen (Namen,
+# Begrüßung, Anweisung, Schlüssel, Türstation) stehen seit 2.6.0 in den Optionen des Eintrags (.storage/core.config_entries), nicht
+# mehr in Helfern, im Tür-Agenten oder in secrets.yaml.
 # status: done = erfüllt, exempt = gilt hier nicht oder ist bewusst nicht gewollt (mit Grund), todo = sinnvoll und offen.
-# Streng gelesen unter Bronze, weil Bronze die Einrichtung über die Oberfläche verlangt (config-flow); ohne diesen Punkt Bronze
-# erfüllt, für Silber fehlt dazu die Testabdeckung, für Gold sonst nur, was am config-flow hängt, für Platin die strenge Typprüfung.
+# Bronze erfüllt; für Silber fehlt die Testabdeckung, für Platin die strenge Typprüfung.
 # Regeln: https://developers.home-assistant.io/docs/core/integration-quality-scale/rules
 rules:
   # --- Bronze ---
@@ -23,11 +22,11 @@ rules:
     status: exempt
     comment: Kein Koordinator und keine Basis-Entität; fünf Entitäten ohne gemeinsamen Abruf.
   config-flow:
-    status: exempt
-    comment: Einrichtung in configuration.yaml mit !secret (Schlüssel, Station, Passwort). Der Eintrag entsteht nur, damit Home Assistant die Entitäten annimmt. Umstellen nur auf des Betreibers Entscheidung (offen.md, Punkt 259).
+    status: done
+    comment: „Integration hinzufügen“ führt gleich in die Maske, „Konfigurieren“ am Eintrag ändert alles ohne Neustart von Home Assistant; oben die Namen, darunter Begrüßung und Anweisung, xAI, Türstation (Schlüssel und Passwort als Passwortfelder, nie vorbelegt). Ein Block grok_voice in configuration.yaml wird einmal übernommen, danach ignoriert (Hinweis unter Reparaturen).
   config-flow-test-coverage:
-    status: exempt
-    comment: Der Ablauf hat keine Maske.
+    status: done
+    comment: pruefung/tests/test_oberflaeche.py deckt config_flow.py vollständig ab (pytest-cov, 14.11.2026).
   dependency-transparency:
     status: done
     comment: Keine fremden Pakete; SIP, RTP und Digest stehen in sprache.py.
@@ -56,10 +55,10 @@ rules:
     comment: Name aus Gerät „Empfang“ und Entität („Störung“, „KI“ …); die Kennungen (binary_sensor.empfang_stoerung …) bleiben fest.
   runtime-data:
     status: exempt
-    comment: Der Zustand liegt in hass.data, weil die Innenstation aus configuration.yaml startet, bevor es den Eintrag gibt. Käme mit config-flow.
+    comment: Der Zustand liegt in hass.data, weil Werkzeuge und Dienst (async_setup) auch ohne Eintrag laufen und Grok Voice beim ersten Start aus configuration.yaml startet, bevor es den Eintrag gibt.
   test-before-configure:
-    status: exempt
-    comment: Keine Maske; siehe test-before-setup.
+    status: done
+    comment: Vor dem Speichern fragt die Maske xAI nach dem Schlüssel (ohne Kosten; antwortet xAI nicht, wird gespeichert), liest die Zeilen der Angaben und rendert Begrüßung und Anweisung streng. Die Anmeldung an der Türstation probt sie nicht (das bräuchte den Port der laufenden Innenstation); ob sie gilt, zeigt der Neustart von Grok Voice gleich nach dem Speichern (Stand in der Maske, Sensor „Empfang Störung“).
   test-before-setup:
     status: done
     comment: Schlüssel, Station oder Passwort fehlen oder Port belegt → Warnung im Log, Sensor „Empfang Störung“ an. Ist der Name der Station nicht auflösbar, versucht es die Anmeldung weiter (Störung nach 3 min). Den Schlüssel prüft die Integration gleich beim Start bei xAI.
@@ -72,7 +71,7 @@ rules:
     comment: tuer_assistent.auflegen wirft nur, wenn Auflegen gar nicht geht (HomeAssistantError mit Übersetzung); ohne Gespräch geschieht nichts. Die Automation ruft mit continue_on_error.
   config-entry-unloading:
     status: done
-    comment: Die Entitäten werden entladen. Die Innenstation gehört zu configuration.yaml und meldet sich beim Anhalten von Home Assistant ab.
+    comment: Die Entitäten werden entladen und die Innenstation hält an (meldet sich an der Station ab); so auch beim Neuladen nach geänderten Optionen.
   docs-configuration-parameters:
     status: done
   docs-installation-parameters:
@@ -89,10 +88,10 @@ rules:
     status: done
   reauthentication-flow:
     status: exempt
-    comment: Der Schlüssel steht in secrets.yaml; ein abgelehnter Schlüssel erscheint unter Reparaturen mit dem, was zu tun ist. Käme mit config-flow.
+    comment: Ein abgelehnter Schlüssel erscheint unter Reparaturen mit dem Weg zu „Konfigurieren“; dort ein neuer Schlüssel, Grok Voice startet ohne Neustart neu. Ein eigener Ablauf wäre derselbe Weg doppelt.
   test-coverage:
     status: todo
-    comment: Verlangt sind über 95 % in jedem Modul. Gemessen am 12.11.2026 mit pytest-cov über pruefung/tests/test_grok_voice.py und test_tuer_assistent.py (Prüfstand der Anlage, gestellte Station, gestelltes xAI) 91 % insgesamt; unter 95 % liegen sprache.py 91 %, conversation.py 93 %, tts.py 90 %, stt.py 89 %, select.py 74 % und config_flow.py 0 %.
+    comment: Verlangt sind über 95 % in jedem Modul. Gemessen am 14.11.2026 mit pytest-cov über die Prüfungen des Tür-Assistenten (Prüfstand der Anlage, gestellte Station, gestelltes xAI) 96 % insgesamt; über 95 % liegen alle Module des Wegs über Grok Voice (sprache.py 95,5 %, __init__.py 98 %, die übrigen 100 %), darunter nur die drei des alten Text-Wegs (conversation.py 93 %, tts.py 90 %, stt.py 89 %).
   # --- Gold ---
   devices:
     status: done
@@ -110,7 +109,7 @@ rules:
     status: done
   docs-examples:
     status: done
-    comment: Ordner beispiele im Projekt (configuration.yaml, Anweisung, Helfer, Automationen).
+    comment: Ordner beispiele im Projekt (configuration.yaml, Automationen); die Anweisung steht als Vorgabe in vorgabe.py und vorbelegt in der Maske.
   docs-known-limitations:
     status: done
   docs-supported-devices:
@@ -144,10 +143,10 @@ rules:
     comment: Symbole der Entitäten und des Dienstes in icons.json.
   reconfiguration-flow:
     status: exempt
-    comment: Einstellungen in configuration.yaml. Käme mit config-flow.
+    comment: Alle Einstellungen liegen in den Optionen („Konfigurieren“) und gelten ohne Neustart; ein zweiter Weg zu denselben Feldern wäre doppelt.
   repair-issues:
     status: done
-    comment: xAI-Schlüssel abgelehnt oder gesperrt; Anmeldung an der Station verloren (beide verschwinden von selbst); dass Mitschriften gespeichert werden (Warnung, lässt sich ignorieren).
+    comment: xAI-Schlüssel abgelehnt oder gesperrt; Anmeldung an der Station verloren (beide verschwinden von selbst); dass Mitschriften gespeichert werden (Warnung, lässt sich ignorieren); dass der Block grok_voice in configuration.yaml weg kann (Warnung, verschwindet ohne ihn).
   stale-devices:
     status: exempt
     comment: Genau ein Gerät.

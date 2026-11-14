@@ -2,7 +2,13 @@
 
 Ein Klingelknopf an einer Dahua-Türstation, hinter dem eine KI antwortet: Sie fängt Paketboten ab und schickt sie zur Paketbox. Sie sagt
 Besuchern, wo sie klingeln müssen, gibt dem Bewohner Bescheid, nimmt Nachrichten an und legt nach der Verabschiedung auf. Im Haus kann sie
-nichts schalten.
+nichts schalten. Eingerichtet wird alles in der Oberfläche von Home Assistant: Namen, Begrüßung, Anweisung (Prompt), xAI-Schlüssel,
+Türstation.
+
+*In English:* a Home Assistant custom integration that registers as a SIP indoor station at a door station (tested with Dahua VTO) and
+lets xAI Grok Voice talk to visitors, speech to speech: it sends couriers to the parcel box, tells visitors which bell to ring, notifies
+the resident and takes messages. It cannot switch or open anything. Everything is configured in the UI (names, greeting, prompt, xAI key,
+door station). The built-in prompt and the tool texts are German; the prompt can be replaced in the UI.
 
 ## Wofür
 
@@ -29,7 +35,8 @@ Besucher drückt den Knopf
       ├─ verbindet sich mit der Echtzeit-Schnittstelle von xAI (Grok Voice: Erkennung, KI und Stimme in einem Schritt)
       │    Ton G.711 (A-law/µ-law, 8 kHz) unverändert in beide Richtungen, Paketlänge wie von der Station angeboten
       │    drei Werkzeuge → Ereignis tuer_assistent_werkzeug → Automation: Handy klingeln lassen, Nachricht weitergeben, auflegen
-      └─ am Ende: tuer_assistent_grok_voice {"ergebnis": "ende", "mitschrift", "grund", "sekunden", "angenommen"}
+      └─ am Ende: tuer_assistent_grok_voice {"ergebnis": "ende", "mitschrift", "grund", "sekunden", "angenommen",
+                                              "stoerung", "betrifft_bewohner"}
            → Automation: eine Meldung aufs Handy mit dem ganzen Gespräch, wenn es den Bewohner betrifft oder gestört war
 ```
 
@@ -42,8 +49,8 @@ Besucher drückt den Knopf
   - Schlüssel abgelehnt oder gesperrt
   - xAI seit 6 h nicht erreichbar
   - Grok Voice nicht gestartet
-  - der letzte Ruf wurde aus einem bleibenden Grund nicht angenommen (xAI lehnt mit 4xx oder einer Meldung ab, die Anweisung fehlt,
-    kein passender Ton); bis ein Ruf angenommen wird
+  - der letzte Ruf wurde aus einem bleibenden Grund nicht angenommen (xAI lehnt mit 4xx oder einer Meldung ab, Begrüßung oder
+    Anweisung lassen sich nicht rendern, kein passender Ton); bis ein Ruf angenommen wird
   
   Der Grund steht im Attribut `grund`. Beginn und Ende einer Störung melden sich je einmal. Eine Plakette auf dem Dashboard hängt man
   an diesen Sensor.
@@ -88,16 +95,16 @@ xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche
 
 | Was | Name | Wozu |
 |---|---|---|
-| Zustand | `tuer_assistent.stand` | Anmeldung, xAI, letztes Werkzeug, letzter Ruf mit Grund des Endes |
+| Zustand | `tuer_assistent.stand` | Anmeldung, xAI, das Modell, das xAI zuletzt genommen hat, letztes Werkzeug, letzter Ruf mit Grund des Endes |
 | Sensor „Empfang Störung“ (Diagnose) | `binary_sensor.empfang_stoerung` | an, wenn der Knopf nicht gehen würde; Attribut `grund` |
-| Auswahl „Empfang KI“ (Einstellung) | `select.empfang_ki` | von welchem Agenten Grok Voice die Anweisung nimmt |
+| Auswahl „Empfang KI“ (Einstellung) | `select.empfang_ki` | nur für den Weg über einen VoIP Stack: an welchen Text-Agenten der Empfang weiterreicht |
 | Erkennung, Stimme, Agent | `stt.empfang`, `tts.empfang`, `conversation.empfang` | nur für den Weg über einen VoIP Stack; bei neuen Einrichtungen aus |
 | Dienst | `tuer_assistent.auflegen` | beendet das laufende Gespräch |
-| Ereignis | `tuer_assistent_grok_voice` | `klingel`, `angenommen`, `abgelehnt`, `ende` (mit Mitschrift und Grund) |
+| Ereignis | `tuer_assistent_grok_voice` | `klingel`, `angenommen`, `abgelehnt`, `ende` (mit Mitschrift, Grund, `stoerung` und `betrifft_bewohner`) |
 | Ereignis | `tuer_assistent_werkzeug` | ein Werkzeug der KI wurde gerufen |
 | Ereignis | `tuer_assistent_gespraech` | Beginn und Ende einer Störung (Feld `ersatz`) |
 | Reparaturen | Einstellungen → Reparaturen | Schlüssel abgelehnt oder gesperrt; Anmeldung an der Station verloren; Warnung, dass Mitschriften gespeichert werden |
-| Diagnose | am Eintrag der Integration | Zustand und Tagebuch der Rufe, ohne Schlüssel, Adresse, Namen und Mitschrift |
+| Diagnose | am Eintrag der Integration | Zustand und Tagebuch der Rufe, ohne Schlüssel, Adresse, Namen, Anweisung und Mitschrift |
 
 Alle Entitäten hängen an einem Gerät „Empfang“; Namen und Symbole kommen aus `translations/` und `icons.json` (deutsch und englisch).
 
@@ -106,52 +113,72 @@ Alle Entitäten hängen an einem Gerät „Empfang“; Namen und Symbole kommen 
 - Rufe schiebt die Station selbst herein (SIP über UDP im Hausnetz); die Integration fragt dafür nichts ab.
 - Die Anmeldung an der Station erneuert sie nach 80 % der gewährten Zeit.
 - Den xAI-Schlüssel prüft sie beim Start, stündlich und nach jedem an xAI gescheiterten Ruf.
-- Den Namen des Bewohners in den Werkzeugen liest sie bei jedem Ruf aus dem Helfer `input_text.tur_namen_erdgeschoss` (Nachname; leer:
-  „der Bewohner“). Im Code steht kein Name.
+- Bewohner, Angaben, Begrüßung und Anweisung liest sie bei jedem Ruf frisch aus ihren Einstellungen; eine Änderung dort gilt ab dem
+  nächsten Ruf. Im Code steht kein Name, und Helfer braucht sie keine.
+- Ob ein Gespräch den Bewohner betrifft (er wurde gerufen, bekam eine Nachricht, oder ein Wort seines Namens fällt) und ob das Ende
+  eine Störung war, entscheidet die Integration und gibt es im Ereignis „ende“ mit.
 - Der Sensor „Empfang Störung“ liest alle 30 s nur den eigenen Zustand.
 
 ## Einrichten
 
-1. Den Ordner `custom_components/tuer_assistent` nach `/config/custom_components/` kopieren. Alternativ geht HACS mit diesem Projekt als
-   benutzerdefiniertem Repository; ein privates Projekt braucht dafür einen GitHub-Token.
-2. An der Türstation eine Innenstation 9904 mit eigenem Passwort anlegen und sie dem Knopf zuordnen. In `__init__.py` steht in den
-   Werkzeug-Beschreibungen der Name des Bewohners (hier „Muster“); anpassen.
-3. `configuration.yaml`, Beispiel in `beispiele/configuration.yaml`:
-   ```yaml
-   tuer_assistent:
-     agenten:                       # nur für den Text-Agenten-Weg; jeder Agent nur mit der Werkzeugliste „Tür-Assistent“
-       conversation.tur_gemini_lite: 8
-     grok_voice:
-       schluessel: !secret xai_api_key
-       station: !secret vto_eg_adresse
-       passwort: !secret vto_9904_passwort
-       # kennung: "9904"   port: 5062   station_port: 5060   stimme: eve
-   ```
-4. Die Anweisung (`beispiele/anweisung.jinja`, eine Jinja-Vorlage) beim Gesprächsagenten eintragen. Grok Voice nimmt sie von dem
-   Agenten, der in `select.empfang_ki` gewählt ist, und rendert sie mit `grok_voice = true`. Namen, Adresse und Lage der Paketbox kommen
-   aus Helfern (`beispiele/helfer.json`).
-5. Die Automationen aus `beispiele/` einspielen:
-   - `klingel_unten.json`: am Ende eines Rufs eine Meldung mit der Mitschrift, wenn sein Name fällt, ein Werkzeug für ihn lief oder
-     der Empfang gestört war
+1. Den Ordner `custom_components/tuer_assistent` nach `/config/custom_components/` kopieren oder dieses Projekt in HACS als
+   benutzerdefiniertes Repository (Typ Integration) eintragen. Home Assistant neu starten.
+2. An der Türstation eine Innenstation (hier 9904) mit eigenem Passwort anlegen und sie dem Knopf zuordnen.
+3. Einstellungen → Geräte & Dienste → Integration hinzufügen → „Tür-Assistent“. Die Maske, von oben:
+
+   | Abschnitt | Feld | Vorgabe | Bedeutung |
+   |---|---|---|---|
+   | Bewohner und Namen | Bewohner | – | Vor- und Nachname dessen, für den der Empfang arbeitet; Variable `bewohner` |
+   | | Anrede | Herr | wie die Werkzeuge ihn nennen: Herr, Frau, Familie oder ohne (der ganze Name) |
+   | | Angaben | vier leere Zeilen | je Zeile `name: wert`; jede wird eine Variable der Anweisung (etwa `dachgeschoss: Familie Beispiel`) |
+   | Begrüßung und Anweisung | Begrüßung | „Hello, guten Tag! Hier ist der Empfang …“ | der erste Satz, wörtlich gesprochen; Vorlage; Variable `begruessung` |
+   | | Anweisung | `vorgabe.py` | der Prompt; Vorlage, bei jedem Ruf neu gerendert |
+   | xAI (Grok Voice) | xAI-Schlüssel | – | wird vor dem Speichern bei xAI geprüft (kostet nichts) |
+   | | Modell | grok-voice-latest | der Alias folgt den Aktualisierungen von xAI; ein Name mit Version legt es fest |
+   | | Stimme | eve | Name der Stimme bei xAI |
+   | | Stichwörter | – | Wörter für die Erkennung; die Namen aus Bewohner und Angaben kommen von selbst dazu |
+   | Türstation | Türstation | – | Name oder Adresse der Station im Hausnetz |
+   | | Nebenstelle | 9904 | Nummer der Innenstation |
+   | | Passwort der Nebenstelle | – | Passwort dieser Innenstation an der Station |
+   | | Eigener SIP-Port | 5062 | UDP-Port, den die Station erreichen muss |
+   | | SIP-Port der Türstation | 5060 | |
+   | | Mitschrift speichern | an | Mitschriften im Tagebuch; aus hält sie heraus, auch aus den schon gespeicherten Rufen |
+
+   Vor dem Speichern prüft die Maske die Zeilen der Angaben, rendert Begrüßung und Anweisung streng (eine Variable, die es nicht gibt,
+   ist ein Fehler) und fragt xAI nach dem Schlüssel. Schlüssel und Passwort zeigt sie nie wieder an; leer gelassen bleiben sie.
+4. Die Automationen aus `beispiele/` einspielen:
+   - `klingel_unten.json`: am Ende eines Rufs eine Meldung mit der Mitschrift, wenn das Gespräch den Bewohner betrifft oder der
+     Empfang gestört war (beides steht im Ereignis)
    - `tuer_assistent_werkzeuge.json`: Handy, Nachricht, Auflegen
    - `tuer_assistent_mitschrift.json`: Beginn und Ende von Störungen aufs Handy (beim Text-Agenten auf Wunsch jeder Wortwechsel)
    
-   Sie nutzen das Skript `script.meldung` der eigenen Anlage (Push aufs Handy).
-6. Neu starten. `tuer_assistent.stand` zeigt im Attribut `grok_voice` den Wert „angemeldet als 9904“ und im Attribut `xai` den Wert
-   „ok“; `binary_sensor.empfang_stoerung` steht auf aus.
+   Sie nutzen das Skript `script.meldung` der eigenen Anlage (Push aufs Handy) und die zwei Helfer aus `beispiele/helfer.json`.
+5. `tuer_assistent.stand` zeigt im Attribut `grok_voice` den Wert „angemeldet als 9904“ und im Attribut `xai` den Wert „ok“;
+   `binary_sensor.empfang_stoerung` steht auf aus. Dasselbe steht oben in der Maske („Stand“).
 
-Einstellungen unter `grok_voice` in `configuration.yaml`:
+Ändern: am Eintrag „Konfigurieren“. Die Maske zeigt dann nur den Abschnitt mit den Namen offen. Namen, Angaben, Begrüßung und
+Anweisung gelten ab dem nächsten Ruf, ohne dass etwas neu startet. Ändert sich etwas an xAI, der Türstation oder „Mitschrift
+speichern“, startet Grok Voice neu (ein laufender Ruf endet), Home Assistant nicht.
 
-| Name | Vorgabe | Bedeutung |
-|---|---|---|
-| `schluessel` | – | xAI-Schlüssel |
-| `station` | – | Adresse der Türstation |
-| `passwort` | – | Passwort der Innenstation an der Station |
-| `kennung` | 9904 | Nummer der Innenstation |
-| `port` | 5062 | eigener SIP-Port (UDP), den die Station erreichen muss |
-| `station_port` | 5060 | SIP-Port der Station |
-| `stimme` | eve | Stimme von Grok Voice |
-| `mitschrift_speichern` | true | Mitschriften im Tagebuch; `false` hält sie heraus, auch aus den schon gespeicherten Rufen |
+### Begrüßung und Anweisung
+
+Beides sind Vorlagen (Jinja) wie überall in Home Assistant. Die mitgelieferte Anweisung (`custom_components/tuer_assistent/vorgabe.py`)
+ist ein Beispiel für ein Haus mit drei Parteien und Briefkästen, die zugleich Paketboxen sind; sie nutzt die Angaben `dachgeschoss`,
+`untergeschoss`, `adresse` und `paketbox` und liest `sensor.anwesend` (Zustand `niemand` heißt: keiner zu Hause). Für ein anderes Haus
+den Text in der Maske anpassen oder ersetzen.
+
+- Variablen: `bewohner`, `anrede`, `begruessung` (nur in der Anweisung) und je Zeile der Angaben eine. Die Werte der Angaben sind Text
+  und werden nie ausgeführt.
+- Gespeichert wird nur eigener Text. Bleibt ein Feld bei der Vorgabe oder leer, gilt die Vorgabe der Integration, auch die einer
+  späteren Version.
+- Welches Modell xAI wirklich nimmt, steht in `tuer_assistent.stand` (Attribut `modell`) und je Ruf im Tagebuch. Ein Wechsel steht
+  einmal als Warnung im Log. Für einen Namen, den es nicht gibt, nimmt xAI still sein Standardmodell.
+
+### Von 2.5.0 kommend
+
+Der Block `grok_voice:` in `configuration.yaml` wird beim ersten Start einmal in die Einstellungen übernommen und danach ignoriert
+(ein Hinweis unter Reparaturen sagt, dass er weg kann). Die Anweisung kommt nicht mehr vom Gesprächsagenten, sondern aus den
+Einstellungen; die Helfer für Namen, Adresse und Paketbox braucht es nicht mehr: Ihre Werte gehören in „Bewohner“ und „Angaben“.
 
 ## Fehlersuche
 
@@ -166,37 +193,42 @@ Einstellungen unter `grok_voice` in `configuration.yaml`:
 | Station sendet keinen Ton mehr | die Station hat beendet, ohne es zu sagen, oder das Netz ist weg |
 | vom nächsten Klingeln abgelöst | die Station rief neu an, während der alte Ruf hier noch offen war |
 | xAI antwortet nicht | xAI hängt; die Meldung am Ende nennt es als Störung |
-| nicht angenommen: … | keine Verbindung zu xAI in 5 s, Schlüssel abgelehnt, oder kein G.711 im Angebot |
+| nicht angenommen: … | keine Verbindung zu xAI in 5 s, Schlüssel abgelehnt, Begrüßung oder Anweisung nicht lesbar, oder kein G.711 im Angebot |
 | 20 s Stille / 8 s Stille nach der Nachricht | niemand spricht mehr |
 
-4. Bleibt der Knopf stumm und im Log steht nichts von „Grok Voice“: Der Abschnitt `grok_voice` fehlt oder ist unvollständig, oder der
-   Port ist belegt (Warnung beim Start).
+4. Bleibt der Knopf stumm und im Log steht nichts von „Grok Voice“: Schlüssel, Türstation oder Passwort fehlen in den Einstellungen
+   (`grok_voice`: „aus (nicht eingerichtet)“), oder der Port ist belegt (Warnung beim Start).
 
 ## Bekannte Grenzen
 
 - Kein Ersatzweg: Ohne Internet oder ohne xAI bleibt der Knopf stumm (die Meldung am Ende und der Sensor sagen es).
 - Ein Gespräch zur Zeit, höchstens 3 min; die Dahua-Station beendet von sich aus nach 2 min.
 - Die KI kann sich verhören, besonders bei Namen; die Anweisung lässt sie nachfragen. Was sie sagt, regelt die Anweisung, nicht der Code.
-- Einrichtung nur über `configuration.yaml`, keine Maske; eine Änderung braucht einen Neustart.
-- Die Werkzeug-Beschreibungen in `__init__.py` nennen den Bewohner („Herrn Muster“); für eine andere Wohnung dort anpassen.
-- Die Anweisung und die Beispiele sind deutsch und auf ein Haus mit drei Wohnungen zugeschnitten.
+- Die Texte der drei Werkzeuge stehen im Code und sind deutsch (mit „Paketbox“); die Anrede des Bewohners darin kommt aus den
+  Einstellungen.
+- Die mitgelieferte Anweisung ist deutsch, auf ein Haus mit drei Wohnungen zugeschnitten und nennt den Bewohner „Herr“ mit Nachnamen;
+  für ein anderes Haus oder eine andere Anrede den Text in der Maske anpassen.
+- Nur xAI Grok Voice als KI; erprobt nur an einer Dahua-Türstation.
+- Die Anmeldung an der Türstation prüft die Maske nicht vor dem Speichern; ob sie gilt, zeigt der Stand gleich danach.
 
 ## Entfernen
 
 1. Die Automationen aus `beispiele/` löschen.
-2. In `configuration.yaml` den Abschnitt `tuer_assistent:` entfernen und neu starten.
-3. Den Eintrag „Tür-Assistent“ unter Geräte & Dienste löschen, den Ordner `custom_components/tuer_assistent` und die Datei
-   `.storage/tuer_assistent.rufe` entfernen.
+2. Den Eintrag „Tür-Assistent“ unter Geräte & Dienste löschen (Grok Voice meldet sich an der Station ab).
+3. Den Ordner `custom_components/tuer_assistent` und die Datei `.storage/tuer_assistent.rufe` entfernen, neu starten; eine Zeile
+   `tuer_assistent:` in `configuration.yaml` vorher entfernen.
 4. An der Türstation die Innenstation 9904 löschen oder dem Knopf wieder eine andere Nummer geben.
 
 ## Kosten und Schutz
 
 - xAI rechnet laut eigener Preisliste 5 Cent je Minute Gespräch ab. Ein Klingeln kostet damit höchstens rund 15 Cent. Im xAI-Konto ein
   Ausgabenlimit setzen.
-- Schlüssel, Adresse der Station und Passwort gehören nur in `secrets.yaml`.
+- Schlüssel, Adresse der Station und Passwort stehen in den Einstellungen des Eintrags (`.storage/core.config_entries`, wie bei jeder
+  Integration unverschlüsselt und in jeder Sicherung). Die Maske zeigt Schlüssel und Passwort nie an; Log und Diagnose enthalten sie
+  nicht, auch keine Namen und keinen Text der Anweisung.
 - Mitschriften: Das Tagebuch hält die letzten 30 Gespräche mit Text fest, unverschlüsselt in `.storage` und damit in jeder Sicherung.
   Dieselben Texte stehen in den Ereignissen der Integration, die der Recorder aufhebt (standardmäßig 10 Tage). Die Integration sagt
-  das unter Reparaturen. Abschalten: `mitschrift_speichern: false`; aus dem Recorder heraus mit
+  das unter Reparaturen. Abschalten: „Mitschrift speichern“ in den Einstellungen; aus dem Recorder heraus mit
   ```yaml
   recorder:
     exclude:
@@ -208,6 +240,18 @@ Einstellungen unter `grok_voice` in `configuration.yaml`:
   Anweisung; die harten Grenzen setzen die Werkzeuge.
 
 ## Stand
+
+Version 2.6.0 (14.11.2026):
+
+- Alle Einstellungen in der Oberfläche: Bewohner mit Anrede, Angaben (je Zeile eine Variable), Begrüßung, Anweisung, xAI, Türstation.
+  Keine Helfer mehr, kein Block in `configuration.yaml`, kein Gesprächsagent als Quelle der Anweisung. Namen und Texte gelten ab dem
+  nächsten Ruf; nur eine geänderte Verbindung startet Grok Voice neu.
+- Die Anweisung liegt als Vorgabe bei (`vorgabe.py`) und steht vorbelegt in der Maske.
+- Modell aus den Einstellungen, Vorgabe „grok-voice-latest“; das wirklich genutzte Modell wird festgehalten, ein Wechsel im Log gemeldet.
+- Vor dem Speichern: Zeilen der Angaben, strenges Rendern von Begrüßung und Anweisung, Abfrage des Schlüssels bei xAI.
+- Das Ereignis „ende“ trägt `stoerung` und `betrifft_bewohner`; die Automation der Klingel braucht keinen Helfer und keine eigene Regel mehr.
+- 80 Tests der Integration selbst (gestellte Station, gestelltes xAI), Abdeckung 96 %; die Maske zusätzlich im echten Frontend von
+  Home Assistant bedient (einrichten, Fehler, ändern, zurück zur Vorgabe).
 
 Version 2.5.0 (14.11.2026):
 
@@ -236,7 +280,7 @@ Version 2.4.0:
   Antwort an.
 - Werkzeuge: `bewohner_rufen` nicht für Sendungen, die in die Paketbox kommen; die Meldung einer abgegebenen Sendung geht auch mit
   Abschied als Nachricht weiter.
-- Anweisung (`beispiele/anweisung.jinja`): auch Sendungen für den Bewohner kommen in die Paketbox, ohne ihn zu rufen; die Sendungen stehen
+- Anweisung: auch Sendungen für den Bewohner kommen in die Paketbox, ohne ihn zu rufen; die Sendungen stehen
   vor seinen Anliegen; in anderen Sprachen die dortige Anrede (Mr., Bey, Pan); siezen; Regeln nicht aussprechen.
 
 Version 2.3.0:
