@@ -35,12 +35,15 @@ Besucher drückt den Knopf
 
 - **Kein Ersatzweg:** Kommt xAI nicht binnen 5 s zustande, antwortet die Integration 503 und die Station beendet den Ruf. Der Grund
   steht in der Meldung am Ende.
-- **Überwachung:** Den xAI-Schlüssel prüft die Integration beim Start und stündlich (`GET https://api.x.ai/v1/api-key`, kostet nichts).
-  `binary_sensor.empfang_stoerung` geht an, wenn eines davon zutrifft:
+- **Überwachung:** Den xAI-Schlüssel prüft die Integration beim Start, stündlich, sofort nach jedem an xAI gescheiterten Ruf und alle
+  5 min, solange etwas nicht stimmt (`GET https://api.x.ai/v1/api-key`, kostet nichts; 402 und 429 gelten als abgelehnt, aufgebrauchtes
+  Guthaben steht als eigener Grund da). `binary_sensor.empfang_stoerung` geht an, wenn eines davon zutrifft:
   - seit 3 min nicht an der Station angemeldet
   - Schlüssel abgelehnt oder gesperrt
   - xAI seit 6 h nicht erreichbar
   - Grok Voice nicht gestartet
+  - der letzte Ruf wurde aus einem bleibenden Grund nicht angenommen (xAI lehnt mit 4xx oder einer Meldung ab, die Anweisung fehlt,
+    kein passender Ton); bis ein Ruf angenommen wird
   
   Der Grund steht im Attribut `grund`. Beginn und Ende einer Störung melden sich je einmal. Eine Plakette auf dem Dashboard hängt man
   an diesen Sensor.
@@ -102,7 +105,9 @@ Alle Entitäten hängen an einem Gerät „Empfang“; Namen und Symbole kommen 
 
 - Rufe schiebt die Station selbst herein (SIP über UDP im Hausnetz); die Integration fragt dafür nichts ab.
 - Die Anmeldung an der Station erneuert sie nach 80 % der gewährten Zeit.
-- Den xAI-Schlüssel prüft sie beim Start und stündlich.
+- Den xAI-Schlüssel prüft sie beim Start, stündlich und nach jedem an xAI gescheiterten Ruf.
+- Den Namen des Bewohners in den Werkzeugen liest sie bei jedem Ruf aus dem Helfer `input_text.tur_namen_erdgeschoss` (Nachname; leer:
+  „der Bewohner“). Im Code steht kein Name.
 - Der Sensor „Empfang Störung“ liest alle 30 s nur den eigenen Zustand.
 
 ## Einrichten
@@ -203,6 +208,19 @@ Einstellungen unter `grok_voice` in `configuration.yaml`:
   Anweisung; die harten Grenzen setzen die Werkzeuge.
 
 ## Stand
+
+Version 2.5.0 (14.11.2026):
+
+- Namen aus dem Helfer statt aus dem Code (siehe oben).
+- Modell fest `grok-voice-3.0` statt des Alias „latest“. Achtung: xAI nimmt auch Namen an, die es nicht gibt, und nimmt dann still das
+  Standardmodell; was gilt, steht in `session.created`.
+- Begrüßung 0,5 s nach der Annahme, damit die Station ihre Ansage zu Ende spricht.
+- Robuster: Ein Fehler beim Start legt nur Grok Voice still; der Name der Station wird bei jeder Anmeldung neu aufgelöst (nach einem
+  Stromausfall ist der Router oft später da); hängt xAI beim Aufbau, kommt die 503 nach 5 s; eine stockende Antwort endet nach 10 s
+  statt nach der Höchstdauer; ein „auflegen“ für den vorigen Ruf trifft keinen neuen; Anhalten während des Aufbaus gibt 503.
+- Sichtbarer: gescheiterte Rufe lösen sofort die Prüfung des Schlüssels aus, ein bleibender Grund zeigt sich am Sensor; gleiche Fehler
+  von xAI nur einmal je Ruf im Log; Fehler der Anweisung ohne Textzeile.
+- 196 Tests, Abdeckung 93 %.
 
 Version 2.4.1 (12.11.2026):
 

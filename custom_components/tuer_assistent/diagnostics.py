@@ -7,6 +7,8 @@ Home Assistant selbst dazu.
 """
 from __future__ import annotations
 
+import time
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
@@ -27,7 +29,10 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
         "grok_voice": "eingetragen" if daten.get("grok_voice") else "nicht eingetragen",
     }
     if bruecke is not None:
+        jetzt = time.monotonic()  # seit wann: Die Störung kommt erst nach 3 min (Anmeldung) und 6 h (xAI), die Diagnose zeigt den Weg dahin
         aus["innenstation"] = {"kennung": bruecke.kennung, "port": bruecke.port, "angemeldet": bruecke.angemeldet, "xai": bruecke.xai,
-                               "stimme": bruecke.stimme, "im_gespraech": bruecke.ruf is not None, "stoerung": bruecke.stoerung()}
+                               "stimme": bruecke.stimme, "im_gespraech": bruecke.ruf is not None, "stoerung": bruecke.stoerung(),
+                               "nicht_angemeldet_seit_s": None if bruecke.anmelde_fehler_seit is None else round(jetzt - bruecke.anmelde_fehler_seit),
+                               "xai_bestaetigt_vor_s": round(jetzt - bruecke.xai_ok_seit)}
         aus["rufe"] = [{k: v for k, v in r.items() if k not in OHNE} for r in bruecke.rufe]
     return aus

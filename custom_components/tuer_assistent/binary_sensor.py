@@ -1,8 +1,9 @@
 """Sensor „Empfang Störung“: an, wenn der Empfang am obersten Knopf nicht gehen würde (Wort des Betreibers vom 11.11.2026 spätabends: „in der
 Überwachung haben, dass diese Integration funktioniert, unsere xAI-Keys nicht ausgelaufen sind und ansonsten im Notfall eine Plakette
 kommt“). Gründe: Grok Voice ist eingetragen, aber nicht gestartet; seit 3 min nicht an der Station angemeldet; xAI-Schlüssel abgelehnt
-oder gesperrt; xAI seit 6 h nicht erreichbar (`Bruecke.stoerung()` in sprache.py). Fragt alle 30 s nach; darauf hört die Plakette
-„Empfang“ auf den Hubs.
+oder gesperrt; xAI seit 6 h nicht erreichbar; der letzte Ruf wurde aus einem Grund nicht angenommen, der beim nächsten wieder gälte
+(xAI lehnt ab, Anweisung fehlt; bis ein Ruf angenommen wird) (`Bruecke.stoerung()` in sprache.py). Fragt alle 30 s nach; darauf hört
+die Plakette „Empfang“ auf den Hubs.
 """
 from __future__ import annotations
 

@@ -10,7 +10,7 @@ Werkzeugliste, die ein Gesprächsagent statt „Assist“ wählt (in SuperGrok: 
 
 Was ein Werkzeug tut: Es feuert das Ereignis `tuer_assistent_werkzeug` mit dem Namen des Werkzeugs und seinen Textfeldern. Mehr nicht.
 Was daraus folgt (Handy, Auflegen), steht in der Automation `automations/tuer_assistent_werkzeuge.json`; dort lässt es sich ändern.
-- bewohner_rufen(anliegen): ein Besucher möchte zu Herrn Muster.
+- bewohner_rufen(anliegen): ein Besucher möchte zum Bewohner im Erdgeschoss (sein Name kommt aus dem Helfer, nicht aus dem Code).
 - nachricht_weitergeben(fuer, nachricht): ein Besucher hinterlässt eine Nachricht, oder ein Zusteller meldet ein abgegebenes Paket.
 - auflegen(): der Besucher hat sich verabschiedet.
 
@@ -63,6 +63,7 @@ Agenten von SuperGrok wählen und bei diesem die Werkzeugliste abwählen, dann E
 from __future__ import annotations
 
 import logging
+import re
 import sys
 
 import voluptuous as vol
@@ -108,23 +109,41 @@ CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.All(lambda v: v or {}, vol.Schema({
 }))}, extra=vol.ALLOW_EXTRA)
 _LOGGER = logging.getLogger(__name__)
 
-# Name, Beschreibung für das Modell, Textfelder, Ergebnis für das Modell
+# Name, Beschreibung für das Modell, Textfelder, Ergebnis für das Modell. Der Bewohner steht nicht im Code (sein Wort vom 12.11.2026:
+# „Namen sollen generell sowieso nicht fest drin stehen … Die können aus dem Helfer kommen … wenn jemand Neues noch einzieht“):
+# {dat}, {akk}, {nom} füllt werkzeuge() aus dem Helfer fürs Erdgeschoss wie die Anweisung („Herrn <Nachname>“), ohne Namen allgemein.
 WEITER = " Rufe jetzt kein Werkzeug mehr auf, sondern antworte dem Besucher mit dem vorgesehenen Satz, in seiner Sprache."
 WERKZEUGE = (
     ("bewohner_rufen",
-     "Gibt Herrn Muster Bescheid, dass jemand zu ihm möchte oder dass etwas für ihn wichtig ist. Nicht für Sendungen, die in die "
+     "Gibt {dat} Bescheid, dass jemand zu ihm möchte oder dass etwas für ihn wichtig ist. Nicht für Sendungen, die in die "
      "Paketbox kommen. anliegen: auf Deutsch, in wenigen Worten, wer da ist und was er möchte.",
-     ("anliegen",), "Herr Muster hat Bescheid bekommen."),
+     ("anliegen",), "{Nom} hat Bescheid bekommen."),
     ("nachricht_weitergeben",
-     "Gibt eine Nachricht des Besuchers an Herrn Muster weiter, auch die Meldung eines Zustellers, dass er eine Sendung für ihn "
-     "abgegeben hat, selbst wenn er sich dabei verabschiedet. Nur für Herrn Muster, nie für andere Bewohner. fuer: Herr Muster. "
+     "Gibt eine Nachricht des Besuchers an {akk} weiter, auch die Meldung eines Zustellers, dass er eine Sendung für ihn "
+     "abgegeben hat, selbst wenn er sich dabei verabschiedet. Nur für {akk}, nie für andere Bewohner. fuer: {nom}. "
      "nachricht: die Nachricht auf Deutsch, sinngetreu in den Worten des Besuchers.",
      ("fuer", "nachricht"), "Die Nachricht ist weitergegeben."),
     ("auflegen",
      "Beendet das Gespräch. Nur verwenden, wenn der Besucher sich verabschiedet hat (Tschüss, Auf Wiedersehen oder Ähnliches, in "
-     "jeder Sprache) und nichts an Herrn Muster weiterzugeben ist, und nie zusammen mit einem anderen Werkzeug.",
+     "jeder Sprache) und nichts an {akk} weiterzugeben ist, und nie zusammen mit einem anderen Werkzeug.",
      (), "Das Gespräch wird gleich beendet."),
 )
+NAMEN_EG = "input_text.tur_namen_erdgeschoss"
+
+
+def nachname(hass: HomeAssistant) -> str:
+    """Nachname des Bewohners im Erdgeschoss aus dem Helfer, gereinigt wie in der Anweisung (letztes Wort); leer ohne Wert."""
+    st = hass.states.get(NAMEN_EG)
+    roh = re.sub(r"[^0-9A-Za-zÀ-ÿ .,-]", "", st.state if st else "")[:60].strip()
+    return "" if roh in ("", "unknown", "unavailable") else roh.split()[-1]
+
+
+def werkzeuge(hass: HomeAssistant) -> list[tuple[str, str, tuple[str, ...], str]]:
+    """Die drei Werkzeuge mit dem Namen aus dem Helfer; ohne Namen „dem Bewohner“."""
+    n = nachname(hass)
+    f = ({"dat": f"Herrn {n}", "akk": f"Herrn {n}", "nom": f"Herr {n}", "Nom": f"Herr {n}"} if n else
+         {"dat": "dem Bewohner", "akk": "den Bewohner", "nom": "der Bewohner", "Nom": "Der Bewohner"})
+    return [(name, text.format(**f), felder, ergebnis.format(**f)) for name, text, felder, ergebnis in WERKZEUGE]
 
 
 VOIP = "custom_components.voip_stack."
@@ -191,6 +210,7 @@ class Werkzeug(llm.Tool):
         self.felder = felder
         self.ergebnis = ergebnis
         self.parameters = vol.Schema({vol.Optional(f, default=""): cv.string for f in felder})
+        self.ohne = ""  # nach einem Aufruf: warum kein Ereignis gefeuert wurde (für den Ablauf im Tagebuch, sprache.py), sonst leer
 
     async def async_call(self, hass: HomeAssistant, tool_input: llm.ToolInput, llm_context: llm.LLMContext):
         daten = {"werkzeug": self.name}
@@ -213,7 +233,8 @@ class Werkzeug(llm.Tool):
             zeiten.append(jetzt)
             hass.bus.async_fire(EREIGNIS, daten)
         _stand(hass, plus=1, zuletzt=self.name, zuletzt_um=dt_util.now().isoformat(timespec="seconds"))
-        _LOGGER.info("Werkzeug %s aufgerufen%s", self.name, " (kein Ereignis: doppelt)" if doppelt else " (kein Ereignis: mehr als %d je Minute)" % JE_MINUTE if zuviel else "")
+        self.ohne = "doppelt" if doppelt else "mehr als %d je Minute" % JE_MINUTE if zuviel else ""
+        _LOGGER.info("Werkzeug %s aufgerufen%s", self.name, " (kein Ereignis: %s)" % self.ohne if self.ohne else "")
         ergebnis = {"ergebnis": self.ergebnis + WEITER}
         # Ab Home Assistant 2026.10 erwartet der Kern ein ToolResult (ein bloßes dict geht nur noch bis 2027.11).
         return llm.ToolResult(data=ergebnis) if hasattr(llm, "ToolResult") else ergebnis
@@ -227,7 +248,7 @@ class TuerAPI(llm.API):
 
     async def async_get_api_instance(self, llm_context: llm.LLMContext) -> llm.APIInstance:
         return llm.APIInstance(api=self, api_prompt="", llm_context=llm_context,
-                               tools=[Werkzeug(*w) for w in WERKZEUGE])
+                               tools=[Werkzeug(*w) for w in werkzeuge(self.hass)])
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -250,7 +271,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         from .sprache import async_starten
 
         hass.data[DOMAIN]["grok_voice"] = True
-        bruecke = await async_starten(hass, gv)
+        try:
+            bruecke = await async_starten(hass, gv)
+        except Exception:  # noqa: BLE001  ein Fehler beim Start legt nur Grok Voice still, nicht Werkzeuge, Dienst und Sensor „Empfang Störung“
+            _LOGGER.warning("Grok Voice: Start gescheitert; ohne Grok Voice weiter", exc_info=True)
+            bruecke = None
         hass.data[DOMAIN]["bruecke"] = bruecke
         _stand(hass, grok_voice="meldet sich an" if bruecke else "nicht gestartet (Log)")
         if bruecke is not None:

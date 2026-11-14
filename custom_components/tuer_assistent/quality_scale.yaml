@@ -1,4 +1,4 @@
-# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 12.11.2026, Version 2.4.1).
+# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 14.11.2026, Version 2.5.0).
 # Eigene Integrationen bekommen keine Stufe; die Regeln dienen hier als Prüfliste (Wort des Betreibers vom 12.11.2026: „Schau auch, was Home
 # Assistant für Gold-Integration verlangt und was davon sinnvoll für uns ist“; dann: „wenn es nicht komplex ist, können wir die
 # anderen Qualitätsmerkmale integrieren“). Offen sind die Testabdeckung und, was eine Einrichtung über die Oberfläche braucht
@@ -62,7 +62,7 @@ rules:
     comment: Keine Maske; siehe test-before-setup.
   test-before-setup:
     status: done
-    comment: Schlüssel, Station oder Passwort fehlen, Port belegt, Station nicht auflösbar → Warnung im Log, Sensor „Empfang Störung“ an. Den Schlüssel prüft die Integration gleich beim Start bei xAI.
+    comment: Schlüssel, Station oder Passwort fehlen oder Port belegt → Warnung im Log, Sensor „Empfang Störung“ an. Ist der Name der Station nicht auflösbar, versucht es die Anmeldung weiter (Störung nach 3 min). Den Schlüssel prüft die Integration gleich beim Start bei xAI.
   unique-config-entry:
     status: done
     comment: single_config_entry und feste unique_id.

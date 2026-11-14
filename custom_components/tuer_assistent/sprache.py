@@ -16,23 +16,34 @@ mit Port 0 ab.
   binnen VERBINDEN s nicht zustande, antwortet die Integration 503 und die Station beendet den Ruf; den Grund trägt die Meldung am Ende.
 - Überwachung (Wort des Betreibers: „in der Überwachung haben, dass diese Integration funktioniert, unsere xAI-Keys nicht ausgelaufen sind und
   ansonsten im Notfall eine Plakette kommt“): Den Schlüssel prüft sie beim Start und stündlich bei xAI (GET /v1/api-key, kostet nichts;
-  ein ungültiger Schlüssel gibt 400, ein gesperrter steht im Ergebnis), dazu bei jeder abgelehnten Verbindung. `stoerung()` nennt, was
-  fehlt: nicht angemeldet seit MELDEN_NACH s, Schlüssel abgelehnt oder gesperrt, xAI seit XAI_STILL s nicht erreichbar. Daraus der
-  Sensor `binary_sensor.empfang_stoerung` (binary_sensor.py) und die Plakette „Empfang“ auf den Hubs; Beginn und Ende einer Störung
-  melden sich je einmal aufs Handy (Mitschrift mit „ersatz“, die Automation der Mitschrift meldet jedes „ersatz“).
+  ein ungültiger Schlüssel gibt 400, ein gesperrter steht im Ergebnis), dazu sofort, wenn ein Ruf an xAI scheitert oder xAI einen Fehler
+  meldet, und alle XAI_NACHPRUEFEN s, solange er nicht in Ordnung ist. Lehnt xAI eine Verbindung mit 400, 401 oder 403 ab, gilt der
+  Schlüssel gleich als abgelehnt; aufgebrauchtes Guthaben steht als solches im Grund. Ohne Antwort von xAI bleibt ein bekanntes Problem
+  stehen; 402 und 429 bei der Prüfung gelten auch als abgelehnt. `stoerung()` nennt, was fehlt: nicht angemeldet seit MELDEN_NACH s,
+  Schlüssel abgelehnt oder gesperrt, xAI seit XAI_STILL s nicht erreichbar, und warum der letzte Ruf nicht angenommen wurde, wenn es
+  beim nächsten wieder so wäre (xAI lehnt die Verbindung mit 4xx oder die Sitzung mit einer Meldung ab, die Anweisung fehlt oder ist
+  nicht lesbar, kein passender Ton im Angebot); das steht ab dem ersten solchen Ruf da, bis ein Ruf angenommen wird. Daraus der Sensor `binary_sensor.empfang_stoerung` (binary_sensor.py) und die Plakette „Empfang“ auf den Hubs;
+  Beginn und Ende einer Störung melden sich je einmal aufs Handy (Mitschrift mit „ersatz“, die Automation der Mitschrift meldet jedes
+  „ersatz“).
 - Nur die Station: Pakete von anderen Adressen verwirft die Integration ungelesen (der Port ist im Hausnetz offen, weil die Station
   ihn erreichen muss); Ton nur von der Station. Das Passwort für 9904 steht in secrets.yaml.
-- Anmeldung verloren (Station aus, Netz, Passwort): neuer Versuch nach 5, 10, 20, 40, dann alle 60 s; dauert es MELDEN_NACH s, ist es
-  eine Störung (wie oben). Beim Anhalten von Home Assistant meldet sie sich ab.
+- Anmeldung verloren (Station aus, Netz, Name nicht auflösbar, Passwort): neuer Versuch nach 5, 10, 20, 40, dann alle 60 s; dauert es
+  MELDEN_NACH s, ist es eine Störung (wie oben). Ohne zufälligen Anteil: Es meldet sich nur diese eine Innenstation, ein Zufall verteilte
+  nichts und machte nur die Prüfung unberechenbar. Den Namen der Station löst sie bei jeder Anmeldung neu auf. Beim Anhalten von Home
+  Assistant meldet sie sich ab.
 - Anweisung: dieselbe wie bei den Text-Agenten (aus dem gewählten Agenten), gerendert mit `grok_voice = true`; die Begrüßung ist der
-  Satz „Hello, …“ daraus und kommt als fester Text (force_message), ohne das Modell zu fragen.
+  Satz „Hello, …“ daraus und kommt als fester Text (force_message), ohne das Modell zu fragen, GRUSS_VERZUG s nach der Annahme (die
+  Station spielt dann noch ihre Ansage); die Annahme selbst wartet nicht.
+- Modell: MODELL, versioniert festgelegt (ein Alias wie „grok-voice-latest“ wechselt ohne Zutun das Verhalten).
 - Nachdenken „high“ (Vorgabe von xAI): Mit „none“ schickte es Zusteller nicht in die Paketbox und wusste die Bewohner nicht, bei
   gleicher Wartezeit bis zum ersten Ton (11.11.2026, r53/gv_proto.py).
 - Werkzeuge: dieselben drei mit denselben Grenzen (`Werkzeug` aus __init__.py). „auflegen“ beendet den Ruf, sobald die Verabschiedung
   gespielt ist; hat das Modell sie in derselben Antwort schon gesprochen, fordert die Brücke keine zweite an (sonst grüßte es doppelt,
-  12.11.2026: in der Simulation bis 22 von 116 Gesprächen); `tuer_assistent.auflegen` beendet ihn ebenso. Nach „bewohner_rufen“ endet der Ruf ebenso nach der Antwort, damit die
+  12.11.2026: in der Simulation bis 22 von 116 Gesprächen); `tuer_assistent.auflegen` beendet ihn ebenso, außer einen Ruf, der erst
+  nach dem letzten „auflegen“ begann, binnen DIENST_SPAET s danach (die Automation ruft den Dienst 6 s nach „auflegen“; klingelt es
+  inzwischen neu, gilt dieser Aufruf dem vorigen Ruf). Nach „bewohner_rufen“ endet der Ruf ebenso nach der Antwort, damit die
   Sprechanlage frei ist und er sich über die App melden kann (Wort des Betreibers vom 11.11.2026 nachts: „solange der Grok damit redet, dann kann
-  ich nicht telefonieren … direkt auflegen und sagen, ich hab Bescheid gesagt, der Muster könnte sich jeden Moment mit der Sprechanlage
+  ich nicht telefonieren … direkt auflegen und sagen, ich hab Bescheid gesagt, der [Bewohner] könnte sich jeden Moment mit der Sprechanlage
   verbinden“).
 - Vollduplex (Wort des Betreibers vom 11.11.2026 abends: „Die Komplexität mit Mikrofon aus brauchst du nicht. Grok … hat selbst eine gute
   Echo-Unterbindung und die Außensprechanlage auch“): Der Ton des Besuchers geht immer zu xAI. Fängt er an zu sprechen, bricht xAI die
@@ -48,7 +59,9 @@ mit Port 0 ab.
   gesendet hat (G.711 ohne Stille-Unterdrückung). Ob sie das tut, war bis 12.11.2026 nicht gemessen; schweigt sie in Pausen, entfiele
   sonst jedes Gespräch nach TON_AUS s Schweigen des Besuchers. Das Tagebuch hält es je Ruf fest (Feld `dauerton`).
 - Robust: Jede Teilaufgabe des Rufs (Takt, Lesen, Schreiben, Wächter) beendet bei einem unerwarteten Fehler den Ruf sauber (BYE),
-  mit dem Grund in der Meldung am Ende, statt still hängen zu bleiben; ein einzelnes unlesbares Ereignis von xAI wird übergangen; scheitert das Senden an xAI,
+  mit dem Grund in der Meldung am Ende, statt still hängen zu bleiben; ein einzelnes unlesbares Ereignis von xAI wird übergangen
+  (Warnung und Schritt im Ablauf einmal je Art und Ruf, ebenso eine Fehlermeldung von xAI: sonst flutet ein Fehler, der jede
+  Ton-Nachricht trifft, Log und Tagebuch); scheitert das Senden an xAI,
   legt sie auf und meldet es; ein Fehler in einem Werkzeug geht als Ergebnis an das Modell, der Ruf läuft weiter; nach Werkzeugen
   fordert sie die Antwort erst an, wenn xAI die Antwort mit den Aufrufen beendet hat (so verlangt es xAI bei mehreren Aufrufen).
 - Wächter (`Ruf.haengt`), jede halbe Sekunde, der erste zutreffende Grund beendet den Ruf: TON_AUS s kein Ton der Station (nur bei
@@ -59,7 +72,8 @@ mit Port 0 ab.
 - Tagebuch (Wort des Betreibers vom 12.11.2026: „guck mal, ob wir auch genug Logging machen“): Je Ruf, auch je abgelehntem, ein Eintrag in
   `.storage/tuer_assistent.rufe` (die letzten RUFE_MERKEN): Beginn, Dauer, Grund des Endes, Ton-Pakete in beide Richtungen, größte
   Lücke im Ton der Station, Wartezeiten bis zum ersten Ton, Werkzeuge, der Ablauf mit Zeiten (SIP, Erkennung, Antworten von xAI) und
-  die Mitschrift. Im Log von Home Assistant steht je Ruf eine Zeile mit den Zahlen, nie mit dem, was der Besucher sagt. Die
+  die Mitschrift. Im Log von Home Assistant steht je Ruf eine Zeile mit den Zahlen, nie mit dem, was der Besucher sagt; als Warnung,
+  wenn das Ende eine Störung ist (`gestoert()`, dieselbe Regel wie für „Empfang gestört“ in der Automation der Klingel). Die
   Diagnose (diagnostics.py) gibt das Tagebuch ohne Mitschrift heraus. Dass Mitschriften gespeichert werden, sagt ein Hinweis unter
   Einstellungen → Reparaturen (Wort des Betreibers vom 12.11.2026: „Speichern der Mitschriften ist okay, aber die Integration müsste
   warnen“); ignoriert, kommt er nicht wieder. Mit `mitschrift_speichern: false` bleibt die Mitschrift aus dem Tagebuch, auch aus
@@ -84,18 +98,22 @@ from types import SimpleNamespace
 import aiohttp
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import TemplateError
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.template import Template
 from homeassistant.util import dt as dt_util
 
-from . import DOMAIN, LAENGE, MITSCHRIFT, WERKZEUGE, Werkzeug, _stand, agenten, gewaehlt
+from . import DOMAIN, LAENGE, MITSCHRIFT, Werkzeug, _stand, agenten, gewaehlt, werkzeuge
 
 _LOGGER = logging.getLogger(__name__)
-URL = "wss://api.x.ai/v1/realtime?model=grok-voice-latest"
+MODELL = "grok-voice-3.0"  # versioniert, wie xAI es für den Betrieb empfiehlt; „grok-voice-latest“ ist ein Alias und wechselt ohne Zutun
+URL = "wss://api.x.ai/v1/realtime?model=" + MODELL
 EREIGNIS = "tuer_assistent_grok_voice"
 VERBINDEN = 5.0  # s für Verbindung und Anweisung, bevor der Ruf angenommen wird
+GRUSS_VERZUG = 0.5  # s nach der Annahme, bevor die Begrüßung bestellt wird (die Station spielt dann noch kurz ihre Ansage)
+SCHLIESSEN = 1.0  # s, höchstens so lange wird auf das Schließen der Verbindung zu xAI gewartet
 HOECHSTENS = 180  # s je Ruf
 KEINE_ANTWORT = 10  # s, in denen xAI dran ist und weder Ereignis noch Ton liefert: auflegen und melden
 STILLE_ENDE = 20  # s, in denen niemand spricht: auflegen
@@ -104,6 +122,7 @@ REDE_HOECHSTENS = 60  # s Rede des Besuchers ohne erkanntes Ende (Lärm, Erkennu
 TON_AUS = 8  # s ohne Ton-Paket der Station: Sie hat den Ruf beendet, ohne es zu sagen (nur bei Dauerton, siehe DAUERTON_AB)
 DAUERTON_AB = 3.0  # s nach dem ersten Ton-Paket: Hat die Station bis dahin ohne Pause gesendet (mind. 80 % von 8000 Byte/s), gilt TON_AUS
 NACHKLANG = 0.4  # s nach dem letzten gespielten Ton, bevor aufgelegt wird
+DIENST_SPAET = 15  # s nach „auflegen“, in denen der Dienst aus der Automation (sie wartet 6 s) noch kommen kann; gilt dann dem vorigen Ruf
 RUFE_MERKEN = 30  # Rufe im Tagebuch (.storage/tuer_assistent.rufe)
 SCHRITTE = 300  # Einträge im Ablauf eines Rufs
 SPRACHE = "de"  # Hinweis an die Erkennung von xAI (language_hint); andere Sprachen erkennt sie weiterhin
@@ -113,7 +132,9 @@ MELDEN_NACH = 180  # s ohne Anmeldung, dann einmal aufs Handy
 ERNEUERN_MIN = 5.0  # s, frühestens so bald wird eine Anmeldung erneuert
 SCHLUESSEL_URL = "https://api.x.ai/v1/api-key"  # Auskunft über den Schlüssel, ohne Kosten
 XAI_PRUEFEN = 3600  # s zwischen zwei Prüfungen des Schlüssels
+XAI_NACHPRUEFEN = 300  # s zwischen zwei Prüfungen, solange er nicht in Ordnung ist (ein behobenes Problem wird bald wieder grün)
 XAI_STILL = 6 * 3600  # s ohne erfolgreiche Prüfung: Störung
+GUTHABEN = "Guthaben aufgebraucht oder Ausgabengrenze erreicht"  # statt des Textes von xAI, der die Kennung des Teams enthält
 MITSCHRIFT_HOECHSTENS = 1800  # Zeichen der Mitschrift in der Meldung am Ende
 WIEDERHOLEN = (0.5, 1.0, 2.0)  # s, nach denen ein REGISTER ohne Antwort wiederholt wird (danach noch 1 s Warten)
 KURZ = {"v": "via", "f": "from", "t": "to", "i": "call-id", "m": "contact", "l": "content-length", "c": "content-type"}
@@ -267,10 +288,10 @@ def digest(methode: str, uri: str, nutzer: str, passwort: str, herausforderung: 
     return "Digest " + ", ".join(teile)
 
 
-def werkzeug_schemas() -> list[dict]:
+def werkzeug_schemas(hass: HomeAssistant) -> list[dict]:
     return [{"type": "function", "name": name, "description": beschreibung,
              "parameters": {"type": "object", "properties": {f: {"type": "string"} for f in felder}}}
-            for name, beschreibung, felder, _ in WERKZEUGE]
+            for name, beschreibung, felder, _ in werkzeuge(hass)]
 
 
 def anweisung_vorlage(hass: HomeAssistant) -> str:
@@ -308,6 +329,32 @@ def _text(err: BaseException) -> str:
     return text[:120] or type(err).__name__
 
 
+def _guthaben(text: str) -> bool:
+    """Sagt xAI, dass das Guthaben aufgebraucht oder die Ausgabengrenze erreicht ist („used all available credits or reached its
+    monthly spending limit“)? Dann hilft kein neuer Schlüssel, sondern Aufladen."""
+    return "credits" in text or "spending limit" in text
+
+
+async def _schliessen(ws) -> None:
+    """Verbindung zu xAI schließen, höchstens SCHLIESSEN s. aiohttp wartet sonst auf die Antwort von xAI (bis 10 s) und, wenn die
+    Leitung stockt, ohne Grenze auf Platz zum Senden (der Herzschlag ist beim Schließen schon aus)."""
+    try:
+        async with asyncio.timeout(SCHLIESSEN):
+            await ws.close()
+    except Exception:  # noqa: BLE001  danach ist sie zu oder verworfen; mehr ist nicht zu tun
+        pass
+
+
+class BleibenderGrund(RuntimeError):
+    """Ein Grund, aus dem auch der nächste Ruf scheitern würde (xAI lehnt die Sitzung ab, Anweisung fehlt oder ist nicht lesbar)."""
+
+
+def gestoert(grund: str) -> bool:
+    """Ist dieses Ende eine Störung? Dieselbe Regel nimmt die Automation „Klingel EG: oberster Knopf“ (klingel_unten) für „Empfang
+    gestört“; test_robust_protokoll.py prüft, dass beide gleich entscheiden."""
+    return grund.startswith("nicht angenommen") or any(w in grund for w in ("xAI", "Fehler", "fehlgeschlagen"))
+
+
 def _mitschrift_melden(hass: HomeAssistant, grund: str) -> None:
     """Ein Ausfall ohne Gespräch: Mitschrift mit Grund (die Automation der Mitschrift schickt jedes „ersatz“ aufs Handy)."""
     hass.bus.async_fire(MITSCHRIFT, {"besucher": "", "empfang": "", "sekunden": 0, "ersatz": ("Grok Voice: " + grund)[:LAENGE],
@@ -332,7 +379,10 @@ class Ruf:
         self.b, self.hass, self.felder, self.adresse = bruecke, bruecke.hass, felder, adresse
         self.call_id = feld(felder, "call-id")
         self.tag = secrets.token_hex(6)
-        self.angebot = sdp_lesen(rumpf)
+        try:
+            self.angebot = sdp_lesen(rumpf)
+        except Exception:  # noqa: BLE001  ein unlesbares Angebot wird wie eins ohne G.711 mit 488 abgelehnt und gemeldet
+            self.angebot = Angebot("", 0, [], 20, [], -1)
         self.codec = waehlen(self.angebot)
         self.ptime = self.angebot.ptime
         self.sdp = ""
@@ -382,6 +432,7 @@ class Ruf:
         self.gerufen: list[str] = []  # alle Werkzeuge des Rufs
         self.uhr = dt_util.now().isoformat(timespec="seconds")
         self.ablauf: list[list] = []  # [s seit Beginn, was geschah], für das Tagebuch; nie, was der Besucher sagt
+        self.einmal: set[str] = set()  # Fehler, die dieser Ruf schon als Warnung gemeldet hat (danach nur noch im Debug-Log)
         self.schritt("INVITE der Station")
 
     def schritt(self, text: str) -> None:
@@ -394,10 +445,11 @@ class Ruf:
         try:
             async with asyncio.timeout(VERBINDEN):
                 self.ws, self.begruessung = await self.b.verbinden_und_anweisen(self.codec.xai)
-            if not self.lebt:  # während des Aufbaus abgebrochen (CANCEL)
-                raise RuntimeError("abgebrochen")
             self.rtp, _ = await loop.create_datagram_endpoint(lambda: _Rtp(self), local_addr=("0.0.0.0", 0))
-        except Exception as err:  # noqa: BLE001  jede Störung heißt: den Ruf nicht annehmen
+            self.sdp = sdp_antwort(self.angebot, self.codec, self.b.lokal, self.rtp.get_extra_info("sockname")[1])
+            if not self.lebt:  # während des Aufbaus beendet (CANCEL, neuer Ruf, Anhalten): kein 200 OK mehr
+                raise RuntimeError("abgebrochen")
+        except Exception as err:  # noqa: BLE001  jede Störung vor dem 200 OK heißt: den Ruf nicht annehmen
             grund = "keine Antwort von xAI in %g s" % VERBINDEN if isinstance(err, TimeoutError) else _text(err)
             if isinstance(err, aiohttp.WSServerHandshakeError) and err.status in (400, 401, 403):
                 self.b.xai_setzen("abgelehnt (HTTP %d)" % err.status)
@@ -407,10 +459,15 @@ class Ruf:
                 self.b.senden(antwort(self.felder, 503, "Service Unavailable", to_tag=self.tag), self.adresse)
                 self.hass.bus.async_fire(EREIGNIS, {"ergebnis": "abgelehnt", "grund": grund})
                 self.grund = "nicht angenommen: " + grund
+                self.b.bald_pruefen()  # den Schlüssel gleich prüfen (Guthaben, Sperre), nicht erst zur nächsten vollen Stunde
+                if isinstance(err, BleibenderGrund) or (isinstance(err, aiohttp.WSServerHandshakeError) and 400 <= err.status < 500):
+                    self.b.abgelehnt = grund  # gälte beim nächsten Ruf wieder: Störung, bis ein Ruf angenommen wird
             await self.aufraeumen()
             return
+        if self.b.abgelehnt:
+            _LOGGER.info("Grok Voice: Ruf wieder angenommen (die Rufe davor nicht: %s)", self.b.abgelehnt)
+            self.b.abgelehnt = ""
         c = self.codec
-        self.sdp = sdp_antwort(self.angebot, c, self.b.lokal, self.rtp.get_extra_info("sockname")[1])
         self.antwort_200 = antwort(self.felder, 200, "OK", to_tag=self.tag, rumpf=self.sdp, kontakt=self.b.kontakt())
         self.letzte_antwort = self.antwort_200
         self.b.senden(self.antwort_200, self.adresse)
@@ -420,8 +477,13 @@ class Ruf:
         self.schritt("angenommen (200 OK), xAI verbunden")
         self.zuletzt_besucher = self.zuletzt_rtp = time.monotonic()
         for name, arbeit in (("200", self._wiederholen_200), ("Schreiben", self._schreiben), ("Lesen", self._lesen),
-                             ("Takt", self._takt), ("Frist", self._frist), ("Wächter", self._waechter)):
+                             ("Takt", self._takt), ("Frist", self._frist), ("Wächter", self._waechter), ("Gruß", self._gruss)):
             self.aufgaben.append(asyncio.create_task(self._sicher(name, arbeit)))
+
+    async def _gruss(self) -> None:
+        """Die Begrüßung, GRUSS_VERZUG s nach der Annahme bestellt: Die Station spielt nach dem 200 OK noch kurz ihre Ansage, sonst
+        spräche der Empfang hinein. Die Annahme selbst wartet nicht darauf."""
+        await asyncio.sleep(GRUSS_VERZUG)
         await self.raus.put({"type": "conversation.item.create", "item": {
             "type": "force_message", "role": "assistant", "interruptible": True,
             "content": [{"type": "output_text", "text": self.begruessung}]}})
@@ -459,8 +521,8 @@ class Ruf:
         """Leer, solange der Ruf vorankommt; sonst der Grund, ihn zu beenden. Jeder Zustand hat genau eine Frist, keiner bleibt ohne."""
         if self.dauerton and jetzt - self.zuletzt_rtp > TON_AUS:
             return "Station sendet keinen Ton mehr (%d s)" % TON_AUS
-        if self.ausgang:  # der Empfang spricht gerade
-            return ""
+        # Spricht der Empfang, hält zuletzt_ton (je gespieltes Paket) alle Fristen frisch. Nicht wieder „ausgang nicht leer: keine Frist“
+        # einführen: Ein Rest unter einer Paketlänge wartet auf das Ende der Antwort, stockt sie, liefe der Ruf bis HOECHSTENS.
         if self.besucher_spricht:  # vor xAI: Redet er, ist nicht xAI dran (auch wenn eine abgebrochene Antwort noch nicht fertig gemeldet ist)
             return "Rede des Besuchers ohne Ende (%d s)" % REDE_HOECHSTENS if jetzt - self.zuletzt_besucher > REDE_HOECHSTENS else ""
         if self.warte_seit is not None or not self.antwort_fertig:  # xAI ist dran
@@ -472,6 +534,10 @@ class Ruf:
         return "%d s Stille" % STILLE_ENDE if still > STILLE_ENDE else ""
 
     # --- Ton ----------------------------------------------------------------------------------------------------------------
+    def spielt(self) -> bool:
+        """Spielt der Takt jetzt eigenen Ton? Ein volles Paket liegt bereit, oder die Antwort ist fertig und der Rest wird aufgefüllt."""
+        return len(self.ausgang) >= 8 * self.ptime or (bool(self.ausgang) and self.antwort_fertig)
+
     def ton_rein(self, daten: bytes, adresse) -> None:
         if not self.lebt or adresse[0] not in (self.angebot.host, self.b.station):
             return
@@ -511,7 +577,7 @@ class Ruf:
             if jetzt - naechst > 0.2:
                 naechst = jetzt
             while naechst <= jetzt + 0.001 and self.lebt:
-                if len(self.ausgang) >= groesse or (self.ausgang and self.antwort_fertig):
+                if self.spielt():
                     nutz = bytes(self.ausgang[:groesse]).ljust(groesse, stille[:1])
                     del self.ausgang[:groesse]
                     marke, sprach = not sprach, True
@@ -539,11 +605,14 @@ class Ruf:
                 return
 
     async def _lesen(self) -> None:
-        grund = "Verbindung zu xAI beendet"
+        grund = ""
         try:
             async for roh in self.ws:
                 if roh.type != aiohttp.WSMsgType.TEXT:
-                    if roh.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.ERROR):
+                    if roh.type == aiohttp.WSMsgType.ERROR:
+                        grund = "Verbindung zu xAI abgebrochen (%s)" % type(roh.data).__name__
+                        break
+                    if roh.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING):
                         break
                     continue
                 try:
@@ -555,11 +624,19 @@ class Ruf:
                 try:
                     await self._ereignis(e)
                 except Exception:  # noqa: BLE001  ein einzelnes kaputtes Ereignis beendet das Gespräch nicht (hängt es, wacht der Wächter)
-                    _LOGGER.warning("Grok Voice: Ereignis %s nicht verarbeitet", str(e.get("type"))[:40], exc_info=True)
+                    art = str(e.get("type"))[:40]
+                    if self._zum_ersten_mal("Ereignis " + art):  # trifft es jedes Ton-Ereignis, wären es bis zu 50 Warnungen je s
+                        _LOGGER.warning("Grok Voice: Ereignis %s nicht verarbeitet (weitere dieser Art in diesem Ruf nur im Debug-Log)", art, exc_info=True)
+                        self.schritt("Ereignis %s nicht verarbeitet" % art)
+                    else:
+                        _LOGGER.debug("Grok Voice: Ereignis %s nicht verarbeitet", art, exc_info=True)
                 if not self.lebt:
                     return
         except Exception as err:  # noqa: BLE001
             grund = "Verbindung zu xAI abgebrochen (%s)" % type(err).__name__
+        if not grund:  # Code des Schließens (1000 regulär, 1006 ohne Abschluss, 1008 und 1011 Fehler bei xAI) für die Fehlersuche
+            code = getattr(self.ws, "close_code", None)
+            grund = "Verbindung zu xAI beendet" + (" (Code %s)" % code if code is not None else "")
         if self.lebt:
             await self.beenden(grund)
 
@@ -614,34 +691,51 @@ class Ruf:
             await self._werkzeug(e)
         elif art == "error":
             fehler = e.get("error") or {}
-            _LOGGER.warning("Grok Voice: Meldung von xAI: %s %s", fehler.get("type"), str(fehler.get("message"))[:160])
-            self.schritt("Fehler von xAI: %s %s" % (fehler.get("type"), str(fehler.get("message"))[:160]))
+            meldung = str(fehler.get("message"))
+            text = "%s %s" % (fehler.get("type"), GUTHABEN if _guthaben(meldung) else meldung[:160])
+            if self._zum_ersten_mal("xAI " + text):  # dieselbe Meldung kann xAI zu jeder Ton-Nachricht schicken (12 je s)
+                _LOGGER.warning("Grok Voice: Meldung von xAI: %s", text)
+                self.schritt("Fehler von xAI: " + text)
+                self.b.bald_pruefen()  # Guthaben oder Sperre mitten im Gespräch: gleich sichtbar, nicht erst zur nächsten vollen Stunde
+            else:
+                _LOGGER.debug("Grok Voice: Meldung von xAI: %s", text)
+
+    def _zum_ersten_mal(self, schluessel: str) -> bool:
+        """Wahr beim ersten Auftreten in diesem Ruf: Warnung und Schritt im Ablauf nur dann, danach nur das Debug-Log."""
+        neu = schluessel not in self.einmal
+        self.einmal.add(schluessel)
+        return neu
 
     async def _werkzeug(self, e: dict) -> None:
         name = str(e.get("name") or "")
         try:
             argumente = json.loads(e.get("arguments") or "{}")
-        except ValueError:
+        except (TypeError, ValueError):  # kaputt oder kein Text: das Werkzeug läuft ohne Felder, das Modell bekommt sein Ergebnis
             argumente = {}
-        eintrag = next((w for w in WERKZEUGE if w[0] == name), None)
+        eintrag = next((w for w in werkzeuge(self.hass) if w[0] == name), None)
         if eintrag is None:
             ausgabe: object = {"ergebnis": "Dieses Werkzeug gibt es nicht."}
+            self.schritt("unbekanntes Werkzeug")  # ohne den Namen: Ihn kann der Besucher dem Modell vorsagen
         else:
+            werkzeug = Werkzeug(*eintrag)
             try:
-                ergebnis = await Werkzeug(*eintrag).async_call(self.hass, SimpleNamespace(tool_name=name, tool_args=argumente if isinstance(argumente, dict) else {}), None)
+                ergebnis = await werkzeug.async_call(self.hass, SimpleNamespace(tool_name=name, tool_args=argumente if isinstance(argumente, dict) else {}), None)
                 ausgabe = getattr(ergebnis, "data", ergebnis)
+                zusatz = " (kein Ereignis: %s)" % werkzeug.ohne if werkzeug.ohne else ""  # gebremst: keine Meldung aufs Handy
             except Exception:  # noqa: BLE001  ein Fehler im Werkzeug beendet nicht das Gespräch
                 _LOGGER.exception("Grok Voice: Werkzeug %s fehlgeschlagen", name)
                 ausgabe = {"ergebnis": "Das hat gerade nicht geklappt. Bitte den Besucher, selbst an der Wohnung zu klingeln."}
+                zusatz = " (fehlgeschlagen)"
             self.werkzeuge.append(name)
             self.gerufen.append(name)
             self.werkzeuge_antwort.append(name)
-            self.schritt("Werkzeug " + name)
+            self.schritt("Werkzeug " + name + zusatz)
             self.nachricht_durch = name == "nachricht_weitergeben"
             self.protokoll.append({"bewohner_rufen": "(dir Bescheid gegeben)", "nachricht_weitergeben": "(Nachricht an dich weitergegeben)",
                                    "auflegen": "(aufgelegt)"}.get(name, "(%s)" % name))
             if name == "auflegen":
                 self.auflegen_wunsch = True
+                self.b.auflegen_um = time.monotonic()  # die Automation ruft den Dienst 6 s später; bis dahin kann schon ein neuer Ruf laufen
             elif name == "bewohner_rufen":  # die Sprechanlage für ihn freimachen: nach dieser Antwort auflegen
                 self.auflegen_wunsch, self.auflegen_grund = True, "aufgelegt nach dem Bescheid an dich (Sprechanlage frei)"
         await self.raus.put({"type": "conversation.item.create", "item": {
@@ -683,11 +777,14 @@ class Ruf:
         self.grund = self.grund or grund
         if bye and self.angenommen:
             self.b.bye(self)
-        self.schritt("Ende: %s%s" % (grund, " (BYE an die Station)" if bye and self.angenommen else ""))
+        elif bye:  # noch nicht angenommen (Anhalten, Dienst während des Aufbaus): die Station bekommt eine Antwort, statt weiter zu klingeln
+            self.b.senden(antwort(self.felder, 503, "Service Unavailable", to_tag=self.tag), self.adresse)
+        self.schritt("Ende: %s%s" % (grund, (" (BYE an die Station)" if self.angenommen else " (503 an die Station)") if bye else ""))
         warten = "; bis zum ersten Ton im Mittel %.1f s, höchstens %.1f s" % (sum(self.wartezeiten) / len(self.wartezeiten), max(self.wartezeiten)) if self.wartezeiten else ""
-        _LOGGER.info("Grok Voice: Ruf beendet nach %.0f s (%s); Ton von der Station %d Pakete, größte Lücke %.1f s, zur Station %d; "
-                     "%d Antworten%s; Werkzeuge: %s", time.monotonic() - self.beginn, grund, self.pakete_rein, self.luecke, self.pakete_raus,
-                     sum(1 for _, t in self.ablauf if t == "Antwort beginnt"), warten, ", ".join(self.gerufen) or "keins")
+        _LOGGER.log(logging.WARNING if gestoert(grund) else logging.INFO,  # Störung (xAI bricht ab, schweigt, Fehler): Warnung
+                    "Grok Voice: Ruf beendet nach %.0f s (%s); Ton von der Station %d Pakete, größte Lücke %.1f s, zur Station %d; "
+                    "%d Antworten%s; Werkzeuge: %s", time.monotonic() - self.beginn, grund, self.pakete_rein, self.luecke, self.pakete_raus,
+                    sum(1 for _, t in self.ablauf if t == "Antwort beginnt"), warten, ", ".join(self.gerufen) or "keins")
         await self.aufraeumen()
 
     async def aufraeumen(self) -> None:
@@ -696,16 +793,13 @@ class Ruf:
         for a in self.aufgaben:
             if a is not aktuell:
                 a.cancel()
-        if self.ws is not None:
-            try:
-                await self.ws.close()
-            except Exception:  # noqa: BLE001
-                pass
         if self.rtp is not None:
             self.rtp.close()
         if self.b.ruf is self:
             self.b.ruf = None
         self._ende_melden()
+        if self.ws is not None:  # zuletzt: hängt die Leitung zu xAI, kämen Meldung und Tagebuch sonst erst Minuten später
+            await _schliessen(self.ws)
 
     def _ende_melden(self) -> None:
         """Einmal je Ruf: das ganze Gespräch und der Grund des Endes (die Automation der Klingel schickt es aufs Handy)."""
@@ -719,15 +813,15 @@ class Ruf:
         try:
             self.hass.bus.async_fire(EREIGNIS, {"ergebnis": "ende", "angenommen": self.angenommen, "sekunden": sekunden,
                                                 "grund": self.grund, "mitschrift": text})
-        except Exception:  # noqa: BLE001  die Meldung darf das Aufräumen nie stören
-            _LOGGER.debug("Ende nicht gefeuert", exc_info=True)
+        except Exception:  # noqa: BLE001  die Meldung darf das Aufräumen nie stören, muss aber sichtbar fehlen
+            _LOGGER.warning("Grok Voice: Ende des Rufs nicht gemeldet", exc_info=True)
         try:
             self.b.merken({"beginn": self.uhr, "sekunden": sekunden, "angenommen": self.angenommen, "grund": self.grund,
                            "ton": "%s, %d ms" % (self.codec.name, self.ptime) if self.codec else "", "pakete_rein": self.pakete_rein,
                            "pakete_raus": self.pakete_raus, "luecke": round(self.luecke, 1), "dauerton": self.dauerton, "wartezeiten": self.wartezeiten,
                            "werkzeuge": self.gerufen, "ablauf": self.ablauf, "mitschrift": self.protokoll})
         except Exception:  # noqa: BLE001  das Tagebuch auch nicht
-            _LOGGER.debug("Ruf nicht ins Tagebuch geschrieben", exc_info=True)
+            _LOGGER.warning("Grok Voice: Ruf nicht ins Tagebuch geschrieben", exc_info=True)
 
 
 async def _warte_auf_update(ws) -> None:
@@ -736,16 +830,22 @@ async def _warte_auf_update(ws) -> None:
         art = nachricht.get("type")
         if art == "session.updated":
             return
-        if art == "error":
-            raise RuntimeError("xAI: %s" % str((nachricht.get("error") or {}).get("message"))[:120])
+        if art == "error":  # xAI nimmt die Sitzung nicht an (z. B. Konto, Stimme): beim nächsten Ruf genauso
+            meldung = str((nachricht.get("error") or {}).get("message"))
+            raise BleibenderGrund("xAI: %s" % (GUTHABEN if _guthaben(meldung) else meldung[:120]))
 
 
-def lokale_adresse(station: str) -> str:
-    """Die eigene Adresse im Hausnetz, von der aus die Station erreicht wird (UDP-connect sendet nichts)."""
+def adressen(station: str) -> tuple[str, str]:
+    """Adresse der Station und die eigene im Hausnetz, von der aus sie erreicht wird (UDP-connect sendet nichts). Ein Name wird bei
+    jeder Anmeldung neu aufgelöst: Nach einem Stromausfall ist Home Assistant oft vor dem Router wieder da."""
+    try:
+        adresse = socket.gethostbyname(station)
+    except OSError as err:
+        raise OSError("Station nicht auflösbar") from err
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        s.connect((station, 5060))
-        return s.getsockname()[0]
+        s.connect((adresse, 5060))
+        return adresse, s.getsockname()[0]
     finally:
         s.close()
 
@@ -755,12 +855,14 @@ class Bruecke(asyncio.DatagramProtocol):
 
     def __init__(self, hass: HomeAssistant, *, schluessel: str, station: str, kennung: str, passwort: str, port: int = 5062,
                  station_port: int = 5060, stimme: str = "eve", mitschrift_speichern: bool = True) -> None:
-        self.hass, self.schluessel, self.station, self.kennung, self.passwort = hass, schluessel, station, kennung, passwort
+        self.hass, self.schluessel, self.station_name, self.kennung, self.passwort = hass, schluessel, station, kennung, passwort
         self.port, self.station_port, self.stimme, self.mitschrift_speichern = port, station_port, stimme, mitschrift_speichern
+        self.station = ""  # ihre Adresse, bei jeder Anmeldung aus station_name bestimmt; bis dahin wird alles verworfen
         self.lokal = "0.0.0.0"
         self.transport = None
         self.ruf: Ruf | None = None
         self.byes: dict[str, asyncio.Task] = {}
+        self.auflegen_um = 0.0  # zuletzt das Werkzeug „auflegen“ (monotonic)
         self.angemeldet = False
         self.anmeldung: asyncio.Task | None = None
         self._antworten: dict[tuple[str, int], asyncio.Future] = {}
@@ -771,7 +873,9 @@ class Bruecke(asyncio.DatagramProtocol):
         self.anmelde_fehler_seit: float | None = None
         self.xai = "noch nicht geprüft"
         self.xai_ok_seit = time.monotonic()  # bis zur ersten Prüfung als gut angenommen
+        self.abgelehnt = ""  # warum der letzte Ruf nicht angenommen wurde, wenn es beim nächsten wieder so wäre; leer nach einem angenommenen
         self.pruefung: asyncio.Task | None = None
+        self._gleich_pruefen = asyncio.Event()  # weckt die Prüfung des Schlüssels vor ihrer Zeit (bald_pruefen)
         self.rufe: list[dict] = []  # Tagebuch der letzten Rufe, neuester zuletzt
         self.speicher: Store | None = None
 
@@ -806,19 +910,22 @@ class Bruecke(asyncio.DatagramProtocol):
         """Verbindung zu xAI mit Anweisung, Stimme, Werkzeugen und Tonformat; → (Verbindung, Begrüßung)."""
         vorlage = anweisung_vorlage(self.hass)
         if not vorlage:
-            raise RuntimeError("keine Anweisung gefunden")
-        anweisung = Template(vorlage, self.hass).async_render({"grok_voice": True}, parse_result=False)
+            raise BleibenderGrund("keine Anweisung gefunden")
+        try:
+            anweisung = Template(vorlage, self.hass).async_render({"grok_voice": True}, parse_result=False)
+        except TemplateError as err:  # nur die Art: Der Text des Fehlers zitiert eine Zeile der Anweisung (Namen) in Log, Tagebuch, Diagnose
+            raise BleibenderGrund("Anweisung nicht lesbar (%s)" % type(err.__cause__ or err).__name__) from None
         treffer = re.search(r"„(Hello,[^“]*)“", anweisung)
         ws = await self.verbinden()
         try:
             await ws.send_json({"type": "session.update", "session": {
                 "instructions": anweisung, "voice": self.stimme, "reasoning": {"effort": "high"},
-                "turn_detection": {"type": "server_vad"}, "tools": werkzeug_schemas(),
+                "turn_detection": {"type": "server_vad"}, "tools": werkzeug_schemas(self.hass),
                 "audio": {"input": {"format": format_, "transcription": {"keyterms": namen(self.hass), "language_hint": SPRACHE}},
                           "output": {"format": format_}}}})
             await _warte_auf_update(ws)
-        except BaseException:
-            await ws.close()
+        except BaseException:  # nicht auf das Schließen warten: Die 503 an die Station geht sonst erst nach VERBINDEN s plus Schließen
+            self.hass.async_create_background_task(_schliessen(ws), "tuer_assistent xAI schließen")
             raise
         return ws, treffer.group(1) if treffer else BEGRUESSUNG
 
@@ -829,9 +936,12 @@ class Bruecke(asyncio.DatagramProtocol):
         if not self.angemeldet and self.anmelde_fehler_seit is not None and jetzt - self.anmelde_fehler_seit >= MELDEN_NACH:
             gruende.append("an der Station nicht angemeldet")
         if self.xai.startswith(("abgelehnt", "gesperrt")):
-            gruende.append("xAI-Schlüssel " + self.xai)
-        elif jetzt - self.xai_ok_seit > XAI_STILL:
-            gruende.append("xAI seit über %d h nicht erreichbar" % (XAI_STILL // 3600))
+            gruende.append("xAI-Schlüssel " + self.xai)  # sagt schon, warum die Rufe scheitern; der abgelehnte Ruf käme nur doppelt
+        else:
+            if jetzt - self.xai_ok_seit > XAI_STILL:
+                gruende.append("xAI seit über %d h nicht erreichbar" % (XAI_STILL // 3600))
+            if self.abgelehnt:  # ob die Prüfung des Schlüssels ein leeres Guthaben sieht, ist offen; der abgelehnte Ruf zeigt es sicher
+                gruende.append("letzter Ruf nicht angenommen: " + self.abgelehnt)
         return "; ".join(gruende)
 
     def xai_setzen(self, zustand: str) -> None:
@@ -847,6 +957,7 @@ class Bruecke(asyncio.DatagramProtocol):
         elif vorher and zustand == "ok":
             _LOGGER.info("Grok Voice: xAI-Schlüssel wieder in Ordnung")
             _mitschrift_melden(self.hass, "xAI-Schlüssel wieder in Ordnung")
+            self.abgelehnt = ""  # die Prüfung hat das Problem gesehen und sieht es nicht mehr (aufgeladen): die Rufe davor zählen nicht mehr
         if jetzt or zustand == "ok":
             self._reparatur("xai_schluessel", zustand if jetzt else "")
         _stand(self.hass, xai=zustand)
@@ -856,22 +967,38 @@ class Bruecke(asyncio.DatagramProtocol):
         try:
             async with asyncio.timeout(15):
                 async with sitzung.get(SCHLUESSEL_URL, headers={"Authorization": "Bearer " + self.schluessel}) as r:
-                    if r.status in (400, 401, 403):
-                        self.xai_setzen("abgelehnt (HTTP %d)" % r.status)
-                        return
-                    r.raise_for_status()
-                    d = await r.json()
+                    if r.status in (400, 401, 402, 403, 429):  # 402 und 429: Guthaben leer oder Ausgabengrenze erreicht
+                        guthaben = _guthaben((await r.read()).decode("utf-8", "replace"))
+                        zustand = "abgelehnt (HTTP %d%s)" % (r.status, ", " + GUTHABEN if guthaben else "")
+                    else:
+                        r.raise_for_status()
+                        d = await r.json()
+                        gesperrt = [k for k in ("api_key_blocked", "api_key_disabled", "team_blocked") if d.get(k)]
+                        zustand = "gesperrt (%s)" % ", ".join(gesperrt) if gesperrt else "ok"
         except Exception as err:  # noqa: BLE001  nicht erreichbar zählt erst nach XAI_STILL als Störung
-            self.xai = "nicht erreichbar (%s)" % type(err).__name__
-            _stand(self.hass, xai=self.xai)
+            if not self.xai.startswith(("abgelehnt", "gesperrt")):  # ohne Antwort bleibt ein bekanntes Problem stehen (kein Flackern)
+                self.xai = "nicht erreichbar (%s)" % ("HTTP %d" % err.status if isinstance(err, aiohttp.ClientResponseError) else type(err).__name__)
+                _stand(self.hass, xai=self.xai)
             return
-        gesperrt = [k for k in ("api_key_blocked", "api_key_disabled", "team_blocked") if d.get(k)]
-        self.xai_setzen("gesperrt (%s)" % ", ".join(gesperrt) if gesperrt else "ok")
+        self.xai_setzen(zustand)
+
+    def bald_pruefen(self) -> None:
+        """Den Schlüssel gleich prüfen: ein Ruf ist an xAI gescheitert oder xAI meldet einen Fehler."""
+        self._gleich_pruefen.set()
 
     async def schluessel_dauernd(self) -> None:
+        """Prüft beim Start, dann stündlich, solange der Schlüssel nicht in Ordnung ist alle XAI_NACHPRUEFEN s, nach bald_pruefen sofort."""
         while True:
-            await self.schluessel_pruefen()
-            await asyncio.sleep(XAI_PRUEFEN)
+            self._gleich_pruefen.clear()
+            try:
+                await self.schluessel_pruefen()
+            except Exception:  # noqa: BLE001  eine unerwartete Antwort darf die Prüfung nicht für immer beenden (Störung nach XAI_STILL)
+                _LOGGER.warning("Grok Voice: Prüfung des xAI-Schlüssels gescheitert", exc_info=True)
+            try:
+                async with asyncio.timeout(XAI_PRUEFEN if self.xai == "ok" else XAI_NACHPRUEFEN):
+                    await self._gleich_pruefen.wait()
+            except TimeoutError:
+                pass
 
     # --- Anmeldung an der Station -------------------------------------------------------------------------------------------
     def kontakt(self) -> str:
@@ -879,7 +1006,7 @@ class Bruecke(asyncio.DatagramProtocol):
 
     async def anmelden(self, gueltig: int) -> int:
         """Ein REGISTER (mit Digest, wenn die Station fragt); → gewährte Sekunden. Wirft bei Ablehnung oder ohne Antwort."""
-        self.lokal = await self.hass.async_add_executor_job(lokale_adresse, self.station)
+        self.station, self.lokal = await self.hass.async_add_executor_job(adressen, self.station_name)
         uri, aor = f"sip:{self.station}", f"<sip:{self.kennung}@{self.station}>"
         kopf_auth: tuple[str, str] | None = None
         for _ in range(2):
@@ -1025,12 +1152,13 @@ class Bruecke(asyncio.DatagramProtocol):
             self.hass.async_create_task(alt.beenden("vom nächsten Klingeln abgelöst", bye=False))
         neu = Ruf(self, felder, adresse, rumpf)
         self.hass.bus.async_fire(EREIGNIS, {"ergebnis": "klingel"})
-        if neu.codec is None or not neu.angebot.host or not neu.angebot.port:
+        if neu.codec is None or not neu.angebot.host or not 0 < neu.angebot.port < 65536:
             angebot = ", ".join(" ".join(m[:1] + m[3:]) for m in neu.angebot.medien) or "keins"
             _LOGGER.warning("Grok Voice: kein G.711 im Angebot der Station (%s)", angebot)
             self.senden(antwort(felder, 488, "Not Acceptable Here", to_tag=neu.tag), adresse)
             self.hass.bus.async_fire(EREIGNIS, {"ergebnis": "abgelehnt", "grund": "kein passender Codec: " + angebot})
             neu.grund = "nicht angenommen: kein passender Ton im Angebot der Station (%s)" % angebot
+            self.abgelehnt = "kein passender Ton im Angebot der Station"  # gälte beim nächsten Ruf wieder (Einstellung der Station)
             neu._ende_melden()
             return
         self.ruf = neu
@@ -1062,6 +1190,9 @@ class Bruecke(asyncio.DatagramProtocol):
     def auflegen(self) -> bool:
         if self.ruf is None or not self.ruf.lebt:
             return False
+        if self.ruf.beginn > self.auflegen_um > time.monotonic() - DIENST_SPAET:  # „auflegen“ kam im vorigen Ruf: der Dienst gilt ihm
+            self.ruf.schritt("Dienst auflegen übergangen (galt dem vorigen Ruf)")
+            return False
         self.ruf.auflegen()
         return True
 
@@ -1085,18 +1216,14 @@ class Bruecke(asyncio.DatagramProtocol):
 
 
 async def async_starten(hass: HomeAssistant, einstellungen: dict) -> Bruecke | None:
-    """Startet die Innenstation; ohne Schlüssel, Station oder Passwort oder bei belegtem Port nicht (dann bleibt der Knopf stumm)."""
+    """Startet die Innenstation; ohne Schlüssel, Station oder Passwort oder bei belegtem Port nicht (dann bleibt der Knopf stumm). Ist
+    der Name der Station noch nicht auflösbar, startet sie trotzdem; die Anmeldung versucht es weiter (Störung nach MELDEN_NACH s)."""
     werte = {k: str(einstellungen.get(k) or "").strip() for k in ("schluessel", "station", "kennung", "passwort", "stimme")}
     fehlt = [k for k in ("schluessel", "station", "passwort") if not werte[k]]
     if fehlt:
         _LOGGER.warning("Grok Voice: es fehlt %s in configuration.yaml; ohne Grok Voice weiter", ", ".join(fehlt))
         return None
-    try:
-        station = await hass.async_add_executor_job(socket.gethostbyname, werte["station"])
-    except OSError as err:
-        _LOGGER.warning("Grok Voice: Station nicht auflösbar (%s); ohne Grok Voice weiter", err)
-        return None
-    bruecke = Bruecke(hass, schluessel=werte["schluessel"], station=station, kennung=werte["kennung"] or "9904",
+    bruecke = Bruecke(hass, schluessel=werte["schluessel"], station=werte["station"], kennung=werte["kennung"] or "9904",
                       passwort=werte["passwort"], port=int(einstellungen.get("port") or 5062),
                       station_port=int(einstellungen.get("station_port") or 5060), stimme=werte["stimme"] or "eve",
                       mitschrift_speichern=bool(einstellungen.get("mitschrift_speichern", True)))
@@ -1107,7 +1234,7 @@ async def async_starten(hass: HomeAssistant, einstellungen: dict) -> Bruecke | N
         return None
     bruecke.speicher = Store(hass, 1, DOMAIN + ".rufe")
     try:
-        bruecke.rufe = list((await bruecke.speicher.async_load() or {}).get("rufe") or [])[-RUFE_MERKEN:]
+        bruecke.rufe = [r for r in list((await bruecke.speicher.async_load() or {}).get("rufe") or [])[-RUFE_MERKEN:] if isinstance(r, dict)]
     except Exception:  # noqa: BLE001  ohne altes Tagebuch beginnt ein neues
         _LOGGER.warning("Grok Voice: Tagebuch der Rufe nicht lesbar, es beginnt neu", exc_info=True)
     if bruecke.mitschrift_speichern:  # Hinweis unter Reparaturen; ignoriert er ihn, bleibt er ignoriert (auch nach Neustarts)
