@@ -178,36 +178,12 @@
     "mitschriften": {
       "title": "Empfang: Mitschriften werden gespeichert",
       "description": "Der Tür-Assistent hält die letzten {anzahl} Rufe in `.storage/tuer_assistent.rufe` fest, mit Mitschrift: was Besucher und Empfang gesagt haben. Die Datei ist unverschlüsselt und steckt in jeder Sicherung von Home Assistant. Die Mitschriften stehen außerdem in den Ereignissen der Integration, die die Ereignis-Datenbank (Recorder) aufhebt, standardmäßig 10 Tage.\n\nSo bleibt es, wenn du nichts tust. Ohne Mitschrift im Tagebuch: unter Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren „Mitschrift speichern“ ausschalten. Aus der Ereignis-Datenbank hält sie `recorder:` → `exclude:` → `event_types:` mit `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` und `tuer_assistent_werkzeug` heraus. Diesen Hinweis kannst du ignorieren; er kommt dann nicht wieder."
-    },
-    "grok_voice_yaml": {
-      "title": "Empfang: Block grok_voice in configuration.yaml kann weg",
-      "description": "Grok Voice ist jetzt in der Oberfläche eingerichtet: Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren. Dort gelten Schlüssel, Türstation, Passwort und die übrigen Werte; der Block `grok_voice:` unter `tuer_assistent:` in `configuration.yaml` wird ignoriert und kann weg (die Zeile `tuer_assistent:` mit `agenten:` bleibt). Die Einträge dafür in `secrets.yaml` nur löschen, wenn sie sonst nichts braucht. Nach dem nächsten Neustart ohne den Block verschwindet dieser Hinweis."
     }
   },
   "entity": {
     "binary_sensor": {
       "stoerung": {
         "name": "Störung"
-      }
-    },
-    "conversation": {
-      "agent": {
-        "name": "Agent"
-      }
-    },
-    "select": {
-      "ki": {
-        "name": "KI"
-      }
-    },
-    "stt": {
-      "erkennung": {
-        "name": "Erkennung"
-      }
-    },
-    "tts": {
-      "stimme": {
-        "name": "Stimme"
       }
     }
   },

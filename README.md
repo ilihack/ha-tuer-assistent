@@ -40,8 +40,9 @@ Besucher drückt den Knopf
            → Automation: eine Meldung aufs Handy mit dem ganzen Gespräch, wenn es den Bewohner betrifft oder gestört war
 ```
 
-- **Kein Ersatzweg:** Kommt xAI nicht binnen 5 s zustande, antwortet die Integration 503 und die Station beendet den Ruf. Der Grund
-  steht in der Meldung am Ende.
+- **Kein Ersatzweg:** Kommt xAI nicht binnen 5 s zustande, antwortet die Integration 503 und die Station beendet den Ruf. Meldet xAI
+  mitten im Gespräch eine Antwort als fehlgeschlagen (`response.done` mit `failed`, etwa bei aufgebrauchtem Guthaben), legt sie sofort
+  auf und prüft den Schlüssel. Der Grund steht in der Meldung am Ende.
 - **Überwachung:** Den xAI-Schlüssel prüft die Integration beim Start, stündlich, sofort nach jedem an xAI gescheiterten Ruf und alle
   5 min, solange etwas nicht stimmt (`GET https://api.x.ai/v1/api-key`, kostet nichts; 402 und 429 gelten als abgelehnt, aufgebrauchtes
   Guthaben steht als eigener Grund da). `binary_sensor.empfang_stoerung` geht an, wenn eines davon zutrifft:
@@ -73,9 +74,6 @@ Besucher drückt den Knopf
 - **Nur die Station:** Den SIP-Port (UDP 5062) muss die Station erreichen, er ist im Hausnetz offen. Pakete von anderen Adressen
   verwirft die Integration deshalb ungelesen.
 
-Daneben enthält die Integration die Bausteine für einen Text-Agenten hinter dem Assist-Weg des VoIP Stack. Das sind `stt.empfang`,
-`conversation.empfang` (mit Ersatzantwort und Mitschrift), `tts.empfang` und `select.empfang_ki`. Für Grok Voice braucht man sie nicht.
-
 ## Werkzeuge der KI
 
 | Werkzeug | Felder | Was passiert |
@@ -87,7 +85,7 @@ Daneben enthält die Integration die Bausteine für einen Text-Agenten hinter de
 Die Werkzeuge rufen keinen Dienst und lesen keinen Zustand. Grenzen, die nicht vom Modell abhängen:
 - höchstens 6 Ereignisse je Minute
 - je Feld 300 druckbare Zeichen
-- derselbe Aufruf mit denselben Feldern feuert binnen 20 s nur einmal ein Ereignis
+- derselbe Aufruf mit denselben Feldern feuert binnen 20 s nur einmal ein Ereignis, dasselbe Werkzeug binnen 3 s nur einmal
 
 xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche, MCP).
 
@@ -97,8 +95,6 @@ xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche
 |---|---|---|
 | Zustand | `tuer_assistent.stand` | Anmeldung, xAI, das Modell, das xAI zuletzt genommen hat, letztes Werkzeug, letzter Ruf mit Grund des Endes |
 | Sensor „Empfang Störung“ (Diagnose) | `binary_sensor.empfang_stoerung` | an, wenn der Knopf nicht gehen würde; Attribut `grund` |
-| Auswahl „Empfang KI“ (Einstellung) | `select.empfang_ki` | nur für den Weg über einen VoIP Stack: an welchen Text-Agenten der Empfang weiterreicht |
-| Erkennung, Stimme, Agent | `stt.empfang`, `tts.empfang`, `conversation.empfang` | nur für den Weg über einen VoIP Stack; bei neuen Einrichtungen aus |
 | Dienst | `tuer_assistent.auflegen` | beendet das laufende Gespräch |
 | Ereignis | `tuer_assistent_grok_voice` | `klingel`, `angenommen`, `abgelehnt`, `ende` (mit Mitschrift, Grund, `stoerung` und `betrifft_bewohner`) |
 | Ereignis | `tuer_assistent_werkzeug` | ein Werkzeug der KI wurde gerufen |
@@ -106,7 +102,7 @@ xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche
 | Reparaturen | Einstellungen → Reparaturen | Schlüssel abgelehnt oder gesperrt; Anmeldung an der Station verloren; Warnung, dass Mitschriften gespeichert werden |
 | Diagnose | am Eintrag der Integration | Zustand und Tagebuch der Rufe, ohne Schlüssel, Adresse, Namen, Anweisung und Mitschrift |
 
-Alle Entitäten hängen an einem Gerät „Empfang“; Namen und Symbole kommen aus `translations/` und `icons.json` (deutsch und englisch).
+Der Sensor hängt an einem Gerät „Empfang“; Namen und Symbole kommen aus `translations/` und `icons.json` (deutsch und englisch).
 
 ## Woher die Daten kommen
 
@@ -150,7 +146,7 @@ Alle Entitäten hängen an einem Gerät „Empfang“; Namen und Symbole kommen 
    - `klingel_unten.json`: am Ende eines Rufs eine Meldung mit der Mitschrift, wenn das Gespräch den Bewohner betrifft oder der
      Empfang gestört war (beides steht im Ereignis)
    - `tuer_assistent_werkzeuge.json`: Handy, Nachricht, Auflegen
-   - `tuer_assistent_mitschrift.json`: Beginn und Ende von Störungen aufs Handy (beim Text-Agenten auf Wunsch jeder Wortwechsel)
+   - `tuer_assistent_mitschrift.json`: Beginn und Ende von Störungen aufs Handy, auf Wunsch jeder Wortwechsel
    
    Sie nutzen das Skript `script.meldung` der eigenen Anlage (Push aufs Handy) und die zwei Helfer aus `beispiele/helfer.json`.
 5. `tuer_assistent.stand` zeigt im Attribut `grok_voice` den Wert „angemeldet als 9904“ und im Attribut `xai` den Wert „ok“;
@@ -174,11 +170,15 @@ den Text in der Maske anpassen oder ersetzen.
 - Welches Modell xAI wirklich nimmt, steht in `tuer_assistent.stand` (Attribut `modell`) und je Ruf im Tagebuch. Ein Wechsel steht
   einmal als Warnung im Log. Für einen Namen, den es nicht gibt, nimmt xAI still sein Standardmodell.
 
-### Von 2.5.0 kommend
+### Von einer älteren Version kommend
 
-Der Block `grok_voice:` in `configuration.yaml` wird beim ersten Start einmal in die Einstellungen übernommen und danach ignoriert
-(ein Hinweis unter Reparaturen sagt, dass er weg kann). Die Anweisung kommt nicht mehr vom Gesprächsagenten, sondern aus den
-Einstellungen; die Helfer für Namen, Adresse und Paketbox braucht es nicht mehr: Ihre Werte gehören in „Bewohner“ und „Angaben“.
+- Von 2.6.0: Die Zeile `tuer_assistent:` in `configuration.yaml` mit allem darunter entfernen; seit 2.7.0 liest die Integration dort
+  nichts mehr. Den alten Text-Weg gibt es nicht mehr: Einen Sprachassistenten oder Gesprächsagenten, der `stt.empfang`,
+  `conversation.empfang`, `tts.empfang` oder die Werkzeugliste „Tür-Assistent“ nutzte, vorher umstellen oder löschen; die vier alten
+  Entitäten (dazu `select.empfang_ki`) danach unter Entitäten löschen.
+- Von 2.5.0 oder älter: erst 2.6.0 einspielen (übernimmt den Block `grok_voice:` einmal in die Einstellungen) oder die Werte gleich
+  in der Maske eintragen. Die Helfer für Namen, Adresse und Paketbox braucht es nicht mehr: Ihre Werte gehören in „Bewohner“ und
+  „Angaben“.
 
 ## Fehlersuche
 
@@ -193,6 +193,7 @@ Einstellungen; die Helfer für Namen, Adresse und Paketbox braucht es nicht mehr
 | Station sendet keinen Ton mehr | die Station hat beendet, ohne es zu sagen, oder das Netz ist weg |
 | vom nächsten Klingeln abgelöst | die Station rief neu an, während der alte Ruf hier noch offen war |
 | xAI antwortet nicht | xAI hängt; die Meldung am Ende nennt es als Störung |
+| xAI-Antwort fehlgeschlagen (…) | xAI hat eine Antwort abgebrochen, etwa bei aufgebrauchtem Guthaben; sofort aufgelegt, als Störung gemeldet |
 | nicht angenommen: … | keine Verbindung zu xAI in 5 s, Schlüssel abgelehnt, Begrüßung oder Anweisung nicht lesbar, oder kein G.711 im Angebot |
 | 20 s Stille / 8 s Stille nach der Nachricht | niemand spricht mehr |
 
@@ -215,8 +216,7 @@ Einstellungen; die Helfer für Namen, Adresse und Paketbox braucht es nicht mehr
 
 1. Die Automationen aus `beispiele/` löschen.
 2. Den Eintrag „Tür-Assistent“ unter Geräte & Dienste löschen (Grok Voice meldet sich an der Station ab).
-3. Den Ordner `custom_components/tuer_assistent` und die Datei `.storage/tuer_assistent.rufe` entfernen, neu starten; eine Zeile
-   `tuer_assistent:` in `configuration.yaml` vorher entfernen.
+3. Den Ordner `custom_components/tuer_assistent` und die Datei `.storage/tuer_assistent.rufe` entfernen, neu starten.
 4. An der Türstation die Innenstation 9904 löschen oder dem Knopf wieder eine andere Nummer geben.
 
 ## Kosten und Schutz
@@ -239,7 +239,43 @@ Einstellungen; die Helfer für Namen, Adresse und Paketbox braucht es nicht mehr
   wenn es dringend ist, sein Handy klingeln zu lassen. Für die Mieter nimmt sie nichts an und gibt nichts weiter. Das regelt die
   Anweisung; die harten Grenzen setzen die Werkzeuge.
 
+## Für Entwickler und KI
+
+Diese Dateien sind genau die, die in der Anlage des Autors laufen; sie werden nach jeder Änderung unverändert hierher übertragen.
+
+| Datei | Inhalt |
+|---|---|
+| `__init__.py` | Einstellungen lesen, die drei Werkzeuge mit ihren Grenzen, der Dienst `auflegen`, Start und Halt von Grok Voice |
+| `sprache.py` | die Innenstation (`Bruecke`: Anmeldung, Rufe, Prüfung des Schlüssels, Tagebuch) und das Gespräch (`Ruf`: Ton, Ereignisse von xAI, Wächter) |
+| `sip.py` | reine Hilfen ohne Zustand und ohne Home Assistant: SIP zerlegen und beantworten, SDP, RTP, Digest, Adressen |
+| `config_flow.py` | die Maske (Einrichten und „Konfigurieren“), Prüfungen vor dem Speichern |
+| `vorgabe.py` | mitgelieferte Begrüßung, Anweisung und Beispiel-Angaben |
+| `binary_sensor.py`, `diagnostics.py` | Sensor „Empfang Störung“, Diagnose |
+| `translations/`, `icons.json`, `services.yaml`, `quality_scale.yaml`, `brand/` | Texte, Symbole, Dienst, Prüfliste der Qualitätsskala, Symbol |
+
+Ablauf eines Rufs in `sprache.py`: `Bruecke.datagram_received` → `_invite` → `Ruf.starten`: Verbindung zu xAI mit Anweisung und
+Werkzeugen (`Bruecke.verbinden_und_anweisen`, `session.update`), dann 200 OK. Ton der Station: `_Rtp` → `Ruf.ton_rein` → `_schreiben`
+zu xAI; von xAI: `_lesen` → `_ereignis`, Ton zur Station: `_takt`; Werkzeuge: `_werkzeug` → `Werkzeug.rufen` (`__init__.py`); Wächter:
+`Ruf.haengt`; Ende immer über `Ruf.beenden(grund)` (BYE, Ereignis „ende“, Tagebuch). Jede Frist steht als Konstante oben in
+`sprache.py`.
+
+Regeln für Änderungen:
+- Kein Name, keine Adresse, kein Schlüssel im Code; alles Persönliche steht in den Einstellungen des Eintrags.
+- Was der Besucher sagt, kommt nie ins Log; die Werkzeuge schalten nichts und lesen keinen Zustand.
+- Kommentare und Texte sind deutsch; jede Frist und jede Grenze als Konstante mit Kommentar, warum.
+- Die Prüfungen (73, mit gestellter Station und gestelltem xAI, Abdeckung jedes Moduls über 95 %) liegen im Projektordner der
+  Anlage (`pruefung/tests/test_tuer_assistent.py`, `test_grok_voice.py`, `test_oberflaeche.py`, `test_robust_*.py`), weil sie deren
+  Prüfstand brauchen; eine Änderung gilt erst, wenn sie dort grün sind.
+
 ## Stand
+
+Version 2.7.0 (15.11.2026):
+
+- Der alte Text-Weg ist entfernt: keine Erkennung, Stimme, Agent und Wahl der KI mehr, keine Werkzeugliste für Gesprächsagenten,
+  keine Zeile in `configuration.yaml`. Es bleibt der Sensor „Empfang Störung“; eingerichtet wird nur in der Oberfläche.
+- Meldet xAI eine Antwort als fehlgeschlagen, legt die Integration sofort auf, statt den Besucher bis zum Wächter warten zu lassen.
+- SIP, SDP, RTP und Digest stehen in `sip.py`; kein Name mehr im Code, die Dateien hier sind genau die der Anlage.
+- 73 Tests, Abdeckung 97 %, jedes Modul über 95 % (Silber der Qualitätsskala erfüllt).
 
 Version 2.6.0 (14.11.2026):
 

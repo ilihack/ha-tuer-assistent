@@ -178,36 +178,12 @@
     "mitschriften": {
       "title": "Reception: transcripts are stored",
       "description": "The door assistant keeps the last {anzahl} calls in `.storage/tuer_assistent.rufe`, including the transcript of what visitor and reception said. The file is not encrypted and is part of every Home Assistant backup. The transcripts are also contained in the integration's events, which the recorder keeps (10 days by default).\n\nNothing changes if you do nothing. To keep transcripts out of the journal, turn off \"Store transcripts\" under Settings → Devices & services → Tür-Assistent → Configure. To keep them out of the recorder, exclude the event types `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` and `tuer_assistent_werkzeug` under `recorder:` → `exclude:` → `event_types:`. You can ignore this notice; it will not come back."
-    },
-    "grok_voice_yaml": {
-      "title": "Reception: the grok_voice block in configuration.yaml can go",
-      "description": "Grok Voice is now set up in the user interface: Settings → Devices & services → Tür-Assistent → Configure. Key, door station, password and the other values apply from there; the block `grok_voice:` under `tuer_assistent:` in `configuration.yaml` is ignored and can be removed (the line `tuer_assistent:` with `agenten:` stays). Remove the entries for it in `secrets.yaml` only if nothing else needs them. This notice disappears after the next restart without the block."
     }
   },
   "entity": {
     "binary_sensor": {
       "stoerung": {
         "name": "Problem"
-      }
-    },
-    "conversation": {
-      "agent": {
-        "name": "Agent"
-      }
-    },
-    "select": {
-      "ki": {
-        "name": "AI agent"
-      }
-    },
-    "stt": {
-      "erkennung": {
-        "name": "Speech recognition"
-      }
-    },
-    "tts": {
-      "stimme": {
-        "name": "Voice"
       }
     }
   },

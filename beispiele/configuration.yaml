@@ -1,12 +1,5 @@
-# Für Grok Voice braucht es in configuration.yaml nichts: einrichten über Einstellungen → Geräte & Dienste → Integration hinzufügen →
-# Tür-Assistent (Namen, Begrüßung, Anweisung, xAI-Schlüssel, Türstation), ändern dort unter „Konfigurieren“.
-#
-# Nur für den alten Weg über einen Text-Agenten hinter einem VoIP Stack: die Agenten, an die der Empfang weiterreichen darf (Auswahl
-# „Empfang KI“), je mit Sekunden bis zur Ersatzantwort. Nie einen Agenten mit den Werkzeugen von Home Assistant eintragen: Wer hier
-# steht, spricht mit Fremden.
-# tuer_assistent:
-#   agenten:
-#     conversation.tur_assistent: 8
+# Die Integration braucht in configuration.yaml nichts: einrichten über Einstellungen → Geräte & Dienste → Integration hinzufügen →
+# Tür-Assistent (Namen, Begrüßung, Anweisung, xAI-Schlüssel, Türstation), ändern dort unter „Konfigurieren“. Nur das Log:
 
 logger:
   logs:

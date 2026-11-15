@@ -1,8 +1,7 @@
 """Einrichtung über die Oberfläche: der eine Eintrag „Tür-Assistent (Empfang)“ und alle seine Einstellungen.
 
-Home Assistant nimmt Entitäten nur über einen Eintrag an. Er entsteht über „Integration hinzufügen“ (gleich mit der Maske) oder aus der
-Zeile „tuer_assistent:“ in configuration.yaml (Import ohne Maske; einen Block grok_voice übernimmt __init__.py dann einmal). Danach
-stehen die Einstellungen am Eintrag unter „Konfigurieren“.
+Der Eintrag entsteht über „Integration hinzufügen“ (gleich mit der Maske); danach stehen die Einstellungen am Eintrag unter
+„Konfigurieren“. Eine Zeile in configuration.yaml gibt es seit 2.7.0 nicht mehr.
 
 Die Maske, von oben (sein Wort vom 14.11.2026: „dort können wir unsere Instruction reinladen und auch die Klartextnamen, vielleicht
 weiter oben, damit man sie dann schnell editieren kann“):
@@ -150,12 +149,6 @@ class TuerAssistentFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> Optionen:
         return Optionen()
-
-    async def async_step_import(self, import_data=None):
-        """Aus der Zeile „tuer_assistent:“: der Eintrag ohne Maske."""
-        await self.async_set_unique_id(DOMAIN)
-        self._abort_if_unique_id_configured()
-        return self.async_create_entry(title=TITEL, data={})
 
     async def async_step_user(self, user_input=None):
         """„Integration hinzufügen“: derselbe Eintrag, gleich mit der Maske (den zweiten verhindert single_config_entry)."""

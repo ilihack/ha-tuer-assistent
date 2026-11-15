@@ -42,7 +42,7 @@ mit Port 0 ab.
   und schreibt einen Wechsel einmal als Warnung ins Log, damit ein anderes Verhalten nach einem Wechsel zuzuordnen ist.
 - Nachdenken „high“ (Vorgabe von xAI): Mit „none“ schickte es Zusteller nicht in die Paketbox und wusste die Bewohner nicht, bei
   gleicher Wartezeit bis zum ersten Ton (11.11.2026, r53/gv_proto.py).
-- Werkzeuge: dieselben drei mit denselben Grenzen (`Werkzeug` aus __init__.py). „auflegen“ beendet den Ruf, sobald die Verabschiedung
+- Werkzeuge: die drei aus __init__.py mit ihren Grenzen (`Werkzeug`). „auflegen“ beendet den Ruf, sobald die Verabschiedung
   gespielt ist; hat das Modell sie in derselben Antwort schon gesprochen, fordert die Brücke keine zweite an (sonst grüßte es doppelt,
   12.11.2026: in der Simulation bis 22 von 116 Gesprächen); `tuer_assistent.auflegen` beendet ihn ebenso, außer einen Ruf, der erst
   nach dem letzten „auflegen“ begann, binnen DIENST_SPAET s danach (die Automation ruft den Dienst 6 s nach „auflegen“; klingelt es
@@ -55,7 +55,7 @@ mit Port 0 ab.
   laufende Antwort ab (bei server_vad von selbst); die Gegenstelle verwirft den noch nicht gespielten Ton und alles, was von dieser
   Antwort noch kommt (11.11.2026 geprobt). Die Begrüßung spielt xAI trotzdem ganz zu Ende; was der Besucher währenddessen sagt, geht
   nicht verloren (ebenso geprobt).
-- Mitschrift: je Antwort `tuer_assistent_gespraech` wie beim Text-Agenten (ki „grok_voice“, sekunden = vom Ende der Rede bis zum
+- Mitschrift: je Antwort `tuer_assistent_gespraech` (ki „grok_voice“, sekunden = vom Ende der Rede bis zum
   ersten Ton; aufs Handy nur, solange der Schalter „Tür Mitschrift“ an ist); das ganze Gespräch kommt mit „ende“ (oben).
 - Ein Ruf zur Zeit, höchstens HOECHSTENS s. Die Station beendet ein Gespräch nach 2 min selbst und sagt es dieser Gegenstelle nicht
   immer (12.11.2026: Der Ruf galt hier noch etwa 1 min als offen, jedes neue Klingeln bekam 486, die Station sagte „Anruf besetzt“). Darum:
@@ -67,7 +67,9 @@ mit Port 0 ab.
   mit dem Grund in der Meldung am Ende, statt still hängen zu bleiben; ein einzelnes unlesbares Ereignis von xAI wird übergangen
   (Warnung und Schritt im Ablauf einmal je Art und Ruf, ebenso eine Fehlermeldung von xAI: sonst flutet ein Fehler, der jede
   Ton-Nachricht trifft, Log und Tagebuch); scheitert das Senden an xAI,
-  legt sie auf und meldet es; ein Fehler in einem Werkzeug geht als Ergebnis an das Modell, der Ruf läuft weiter; nach Werkzeugen
+  legt sie auf und meldet es; meldet xAI eine Antwort als fehlgeschlagen (response.done mit „failed“, etwa aufgebrauchtes Guthaben),
+  legt sie sofort auf, statt den Besucher warten zu lassen, und prüft den Schlüssel gleich (Wort des Betreibers vom 15.11.2026: „bei
+  failed direkt auflegen“); ein Fehler in einem Werkzeug geht als Ergebnis an das Modell, der Ruf läuft weiter; nach Werkzeugen
   fordert sie die Antwort erst an, wenn xAI die Antwort mit den Aufrufen beendet hat (so verlangt es xAI bei mehreren Aufrufen).
 - Wächter (`Ruf.haengt`), jede halbe Sekunde, der erste zutreffende Grund beendet den Ruf: TON_AUS s kein Ton der Station (nur bei
   Dauerton, oben); der Besucher „spricht“ laut Erkennung REDE_HOECHSTENS s ohne Ende (Lärm, oder die Erkennung hängt); xAI ist dran
@@ -90,16 +92,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from dataclasses import dataclass
-import hashlib
 import json
 import logging
 import re
 import secrets
-import socket
 import time
 from collections.abc import Mapping
-from types import SimpleNamespace
 from urllib.parse import quote
 
 import aiohttp
@@ -113,6 +111,7 @@ from homeassistant.helpers.template import Template
 from homeassistant.util import dt as dt_util
 
 from . import DOMAIN, LAENGE, MITSCHRIFT, VORGABEN, Werkzeug, _stand, angaben_lesen, einstellungen, sauber, vorgabe, werkzeuge
+from .sip import Angebot, adressen, antwort, digest, feld, rtp_nutzlast, sdp_antwort, sdp_lesen, waehlen, zerlege
 
 _LOGGER = logging.getLogger(__name__)
 URL = "wss://api.x.ai/v1/realtime?model="  # dahinter das Modell aus den Einstellungen
@@ -143,155 +142,7 @@ XAI_STILL = 6 * 3600  # s ohne erfolgreiche Prüfung: Störung
 GUTHABEN = "Guthaben aufgebraucht oder Ausgabengrenze erreicht"  # statt des Textes von xAI, der die Kennung des Teams enthält
 MITSCHRIFT_HOECHSTENS = 1800  # Zeichen der Mitschrift in der Meldung am Ende
 WIEDERHOLEN = (0.5, 1.0, 2.0)  # s, nach denen ein REGISTER ohne Antwort wiederholt wird (danach noch 1 s Warten)
-KURZ = {"v": "via", "f": "from", "t": "to", "i": "call-id", "m": "contact", "l": "content-length", "c": "content-type"}
 BEGRUESSUNG = "Hello! Hier ist der Empfang, wie kann ich helfen?"  # nur falls die Begrüßung aus den Einstellungen leer herauskommt
-
-
-@dataclass(frozen=True)
-class Codec:
-    """G.711 auf der Leitung; xAI nimmt und liefert es genau so."""
-
-    pt: int
-    name: str
-
-    @property
-    def xai(self) -> dict:
-        return {"type": "audio/pcma" if self.name == "PCMA" else "audio/pcmu", "rate": 8000}
-
-    @property
-    def stille(self) -> int:
-        return 0xD5 if self.name == "PCMA" else 0xFF
-
-
-def zerlege(daten: bytes) -> tuple[str, list[tuple[str, str]], str]:
-    """SIP-Nachricht → erste Zeile, Kopfzeilen (Name klein, Kurzformen aufgelöst), Rumpf."""
-    text = daten.decode("utf-8", "replace")
-    kopf, _, rumpf = text.partition("\r\n\r\n")
-    zeilen = kopf.split("\r\n")
-    felder: list[tuple[str, str]] = []
-    for z in zeilen[1:]:
-        if not z:
-            continue
-        if z[0] in " \t" and felder:
-            felder[-1] = (felder[-1][0], felder[-1][1] + " " + z.strip())
-            continue
-        name, _, wert = z.partition(":")
-        name = name.strip().lower()
-        felder.append((KURZ.get(name, name), wert.strip()))
-    return zeilen[0].strip(), felder, rumpf
-
-
-def feld(felder, name: str) -> str:
-    return next((w for n, w in felder if n == name), "")
-
-
-@dataclass
-class Angebot:
-    """Das SDP-Angebot der Station: Adresse und Port des Tons, angebotene G.711-Codecs, Paketlänge, alle Medienzeilen der Reihe nach."""
-
-    host: str
-    port: int
-    codecs: list[Codec]
-    ptime: int
-    medien: list[list[str]]  # je Zeile: Medium, Port, Protokoll, Formate …
-    ton: int  # Index der ersten Tonzeile in medien, -1 ohne
-
-
-def sdp_lesen(rumpf: str) -> Angebot:
-    host, medien, karte, ton, ptime, typen, port = "", [], {0: "PCMU", 8: "PCMA"}, -1, 20, [], 0
-    in_ton = False
-    for z in rumpf.replace("\r\n", "\n").split("\n"):
-        z = z.strip()
-        if z.startswith("m="):
-            teile = z[2:].split()
-            medien.append(teile)
-            in_ton = ton == -1 and len(teile) >= 3 and teile[0] == "audio"
-            if in_ton:
-                ton = len(medien) - 1
-                port = int(teile[1]) if teile[1].isdigit() else 0
-                typen = [int(x) for x in teile[3:] if x.isdigit()]
-        elif z.startswith("c=IN IP4 ") and (in_ton or not host):
-            host = z[9:].split("/")[0].strip()
-        elif z.startswith("a=rtpmap:") and in_ton:
-            m = re.match(r"a=rtpmap:(\d+)\s+([^/\s]+)/(\d+)", z)
-            if m and m.group(3) == "8000":
-                karte[int(m.group(1))] = m.group(2).upper()
-        elif z.startswith("a=ptime:") and in_ton and z[8:].strip().isdigit() and int(z[8:].strip()) in (10, 20, 30, 40):
-            ptime = int(z[8:].strip())
-    codecs = [Codec(t, karte[t]) for t in typen if karte.get(t) in ("PCMA", "PCMU")]
-    return Angebot(host, port, codecs, ptime, medien, ton)
-
-
-def waehlen(angebot: Angebot) -> Codec | None:
-    """A-law vor µ-law."""
-    return next((c for name in ("PCMA", "PCMU") for c in angebot.codecs if c.name == name), None)
-
-
-def sdp_antwort(angebot: Angebot, codec: Codec, host: str, rtp_port: int) -> str:
-    """Antwort mit derselben Zahl und Reihenfolge der Medienzeilen; Ton mit dem gewählten Codec, alles andere abgelehnt (Port 0)."""
-    sitzung = secrets.randbelow(10**9)
-    zeilen = [f"v=0\r\no=- {sitzung} {sitzung} IN IP4 {host}\r\ns=Empfang\r\nc=IN IP4 {host}\r\nt=0 0\r\n"]
-    for i, m in enumerate(angebot.medien):
-        if i == angebot.ton:
-            zeilen.append(f"m=audio {rtp_port} RTP/AVP {codec.pt}\r\na=rtpmap:{codec.pt} {codec.name}/8000\r\n"
-                          f"a=ptime:{angebot.ptime}\r\na=sendrecv\r\n")
-        else:
-            zeilen.append(f"m={m[0]} 0 {m[2] if len(m) > 2 else 'RTP/AVP'} {m[3] if len(m) > 3 else '0'}\r\n")
-    return "".join(zeilen)
-
-
-def antwort(felder, code: int, grund: str, *, to_tag: str = "", rumpf: str = "", kontakt: str = "") -> bytes:
-    zeilen = [f"SIP/2.0 {code} {grund}"]
-    zeilen += ["Via: " + w for n, w in felder if n == "via"]
-    zeilen.append("From: " + feld(felder, "from"))
-    an = feld(felder, "to")
-    if to_tag and ";tag=" not in an:
-        an += ";tag=" + to_tag
-    zeilen += ["To: " + an, "Call-ID: " + feld(felder, "call-id"), "CSeq: " + feld(felder, "cseq")]
-    if kontakt:
-        zeilen.append("Contact: " + kontakt)
-    zeilen.append("Server: tuer_assistent")
-    if rumpf:
-        zeilen.append("Content-Type: application/sdp")
-    zeilen.append("Content-Length: %d" % len(rumpf.encode()))
-    return ("\r\n".join(zeilen) + "\r\n\r\n" + rumpf).encode()
-
-
-def rtp_nutzlast(d: bytes) -> tuple[int, bytes] | None:
-    """RTP-Paket → (Nutzlast-Typ, Nutzlast) oder None."""
-    if len(d) < 12 or d[0] >> 6 != 2:
-        return None
-    ab = 12 + 4 * (d[0] & 0x0F)
-    if d[0] & 0x10:
-        if len(d) < ab + 4:
-            return None
-        ab += 4 + 4 * int.from_bytes(d[ab + 2:ab + 4], "big")
-    ende = len(d) - (d[-1] if d[0] & 0x20 and d[-1] else 0)
-    return (d[1] & 0x7F, d[ab:ende]) if ab <= ende else None
-
-
-def _md5(text: str) -> str:
-    return hashlib.md5(text.encode(), usedforsecurity=False).hexdigest()
-
-
-def digest(methode: str, uri: str, nutzer: str, passwort: str, herausforderung: str, nc: int = 1) -> str:
-    """Kopfzeile Authorization für eine Digest-Herausforderung (MD5, mit oder ohne qop=auth)."""
-    roh = herausforderung.split(" ", 1)[1] if herausforderung.lower().startswith("digest ") else herausforderung
-    p = {k.lower(): (v[1:-1] if v.startswith('"') else v) for k, v in re.findall(r'(\w+)\s*=\s*("[^"]*"|[^,\s]+)', roh)}
-    if p.get("algorithm", "MD5").upper() != "MD5":
-        raise ValueError("Verfahren %s nicht unterstützt" % p.get("algorithm"))
-    realm, nonce = p.get("realm", ""), p.get("nonce", "")
-    ha1, ha2 = _md5(f"{nutzer}:{realm}:{passwort}"), _md5(f"{methode}:{uri}")
-    teile = [f'username="{nutzer}"', f'realm="{realm}"', f'nonce="{nonce}"', f'uri="{uri}"']
-    if "auth" in [q.strip() for q in p.get("qop", "").split(",")]:
-        cnonce, ncs = secrets.token_hex(8), "%08x" % nc
-        teile += [f'response="{_md5(f"{ha1}:{nonce}:{ncs}:{cnonce}:auth:{ha2}")}"', "qop=auth", f"nc={ncs}", f'cnonce="{cnonce}"']
-    else:
-        teile.append(f'response="{_md5(f"{ha1}:{nonce}:{ha2}")}"')
-    teile.append("algorithm=MD5")
-    if "opaque" in p:
-        teile.append(f'opaque="{p["opaque"]}"')
-    return "Digest " + ", ".join(teile)
 
 
 def werkzeug_schemas(hass: HomeAssistant) -> list[dict]:
@@ -695,7 +546,18 @@ class Ruf:
             self.schritt("Antwort beginnt")
         elif art == "response.done":  # nach Werkzeug-Aufrufen erst jetzt die Folgeantwort anfordern; fertig erst, wenn auch sie durch ist
             self.laeuft = False
-            self.schritt("Antwort fertig (%s)" % str((e.get("response") or {}).get("status") or "ohne Angabe")[:20])
+            ergebnis = e.get("response") if isinstance(e.get("response"), dict) else {}
+            self.schritt("Antwort fertig (%s)" % str(ergebnis.get("status") or "ohne Angabe")[:20])
+            if ergebnis.get("status") == "failed":  # xAI kann diese Antwort nicht liefern (Guthaben, Störung): gleich auflegen, nicht schweigen
+                details = ergebnis.get("status_details")
+                fehler = details.get("error") if isinstance(details, dict) else None
+                fehler = fehler if isinstance(fehler, dict) else {}
+                meldung = str(fehler.get("message") or fehler.get("type") or "ohne Angabe")
+                text = GUTHABEN if _guthaben(meldung) else meldung[:80]
+                _LOGGER.warning("Grok Voice: Antwort von xAI fehlgeschlagen: %s", text)
+                self.b.bald_pruefen()
+                await self.beenden("xAI-Antwort fehlgeschlagen (%s)" % text)
+                return
             if self.nach_werkzeug:
                 self.nach_werkzeug = False
                 if self.werkzeuge_antwort == ["auflegen"] and self.ton_in_antwort:  # der Gruß ist schon gesprochen: kein zweiter
@@ -754,8 +616,7 @@ class Ruf:
         else:
             werkzeug = Werkzeug(*eintrag)
             try:
-                ergebnis = await werkzeug.async_call(self.hass, SimpleNamespace(tool_name=name, tool_args=argumente if isinstance(argumente, dict) else {}), None)
-                ausgabe = getattr(ergebnis, "data", ergebnis)
+                ausgabe = await werkzeug.rufen(self.hass, argumente if isinstance(argumente, dict) else {})
                 zusatz = " (kein Ereignis: %s)" % werkzeug.ohne if werkzeug.ohne else ""  # gebremst: keine Meldung aufs Handy
             except Exception:  # noqa: BLE001  ein Fehler im Werkzeug beendet nicht das Gespräch
                 _LOGGER.exception("Grok Voice: Werkzeug %s fehlgeschlagen", name)
@@ -883,21 +744,6 @@ async def _warte_auf_update(ws) -> str:
         if art == "error":  # xAI nimmt die Sitzung nicht an (z. B. Konto, Stimme): beim nächsten Ruf genauso
             meldung = str((nachricht.get("error") or {}).get("message"))
             raise BleibenderGrund("xAI: %s" % (GUTHABEN if _guthaben(meldung) else meldung[:120]))
-
-
-def adressen(station: str) -> tuple[str, str]:
-    """Adresse der Station und die eigene im Hausnetz, von der aus sie erreicht wird (UDP-connect sendet nichts). Ein Name wird bei
-    jeder Anmeldung neu aufgelöst: Nach einem Stromausfall ist Home Assistant oft vor dem Router wieder da."""
-    try:
-        adresse = socket.gethostbyname(station)
-    except OSError as err:
-        raise OSError("Station nicht auflösbar") from err
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect((adresse, 5060))
-        return adresse, s.getsockname()[0]
-    finally:
-        s.close()
 
 
 class Bruecke(asyncio.DatagramProtocol):

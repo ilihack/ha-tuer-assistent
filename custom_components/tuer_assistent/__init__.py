@@ -1,85 +1,60 @@
-"""Tür-Assistent („Empfang“): drei eigene Werkzeuge für den Gesprächsagenten an der Haustür, ein Dienst zum Auflegen, Grok Voice als
-eigene Innenstation (`sprache.py`), der Sensor „Empfang Störung“ (`binary_sensor.py`) und drei Entitäten für die Sprachkette des
-Text-Agenten (`stt.py`: Erkennung ohne Text; `conversation.py`: KI ohne Antwort, Mitschrift; `tts.py`: Stimme von Grok mit selbst
-erkannter Sprache, Katja als Ersatz; derzeit ungenutzt, sie gehören zum Weg über einen VoIP Stack).
+"""Tür-Assistent („Empfang“): Grok Voice von xAI spricht am obersten Knopf der Türstation mit Besuchern. Die Integration meldet sich
+selbst als Innenstation an der Station an, nimmt deren Rufe an und verbindet sie mit der Echtzeit-Schnittstelle von xAI.
+
+Aufbau (für jeden, der hier etwas ändert, Mensch oder KI; mehr in README.md):
+- __init__.py      Einstellungen lesen, die drei Werkzeuge, der Dienst `tuer_assistent.auflegen`, Start und Halt von Grok Voice.
+- sprache.py       die Innenstation: Anmeldung (REGISTER), Rufe (INVITE, BYE), Ton (RTP), das Gespräch mit xAI, Wächter, Tagebuch.
+- sip.py           reine Hilfen ohne Zustand: SIP-Nachrichten zerlegen und beantworten, SDP, RTP, Digest, Adressen im Hausnetz.
+- config_flow.py   die Maske (Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren).
+- vorgabe.py       die mitgelieferte Begrüßung und Anweisung (Prompt) und die Beispiel-Angaben.
+- binary_sensor.py der Sensor „Empfang Störung“; diagnostics.py die Diagnose zum Herunterladen.
+- translations/, icons.json, services.yaml, quality_scale.yaml, brand/: Texte, Symbole, Dienst, Prüfliste, Symbol der Integration.
+Regeln: Kein Name, keine Adresse und kein Schlüssel im Code; alles Persönliche steht in den Einstellungen des Eintrags, denn dieselben
+Dateien liegen öffentlich auf GitHub. Was der Besucher sagt, steht nie im Log. Die Werkzeuge schalten nichts im Haus.
 
 Wozu: Der Empfang spricht mit Fremden. Er darf im Haus nichts schalten und keinen Zustand lesen, soll aber dem Bewohner Bescheid geben,
 eine Nachricht weitergeben und auflegen können (Wort des Betreibers vom 10.11.2026: „Mach die Integration, dass mein Handy da klingelt“).
-Die Werkzeuge von Home Assistant („Assist“) gibt es nur im Ganzen, mit allen freigegebenen Geräten. Darum hier eine eigene, enge
-Werkzeugliste, die ein Gesprächsagent statt „Assist“ wählt (in SuperGrok: „Home Assistant steuern“ → „Tür-Assistent“).
 
 Was ein Werkzeug tut: Es feuert das Ereignis `tuer_assistent_werkzeug` mit dem Namen des Werkzeugs und seinen Textfeldern. Mehr nicht.
-Was daraus folgt (Handy, Auflegen), steht in der Automation `automations/tuer_assistent_werkzeuge.json`; dort lässt es sich ändern.
-- bewohner_rufen(anliegen): ein Besucher möchte zum Bewohner (sein Name kommt aus den Einstellungen, Feld „Bewohner“, nicht aus dem Code).
+Was daraus folgt (Handy, Auflegen), steht in einer Automation der Anlage; dort lässt es sich ändern.
+- bewohner_rufen(anliegen): ein Besucher möchte zum Bewohner (sein Name kommt aus den Einstellungen, Feld „Bewohner“).
 - nachricht_weitergeben(fuer, nachricht): ein Besucher hinterlässt eine Nachricht, oder ein Zusteller meldet ein abgegebenes Paket.
 - auflegen(): der Besucher hat sich verabschiedet.
 
-Der Dienst `tuer_assistent.auflegen` beendet das laufende Gespräch des Empfangs; die Automation ruft ihn. Der VoIP Stack hat
-dafür keinen öffentlichen Dienst: `voip_stack.hangup` nimmt nur Rufe, die einer Automation oder einem Telefon in der Oberfläche
-gehören, und antwortet bei einem Ruf des Assistenten „belongs to another phone endpoint“ (11.11.2026 gemessen). Darum nimmt der
-Dienst denselben Weg, den `voip_stack.hangup` für Rufe einer Automation selbst geht (`request_termination` am Ruf-Register), und
-greift dafür auf zwei Namen im Inneren des VoIP Stack zu. Ändert ein Update sie, legt der Dienst nicht mehr auf, meldet das im Log
-und in `tuer_assistent.stand` (Attribut `auflegen`), und sonst geschieht nichts: Die Türstation beendet jeden Ruf nach 2 min selbst.
-
-Das schnelle Modell ruft ein Werkzeug gern mehrfach hintereinander (am 10.11.2026 zehnmal `auflegen` in einer Antwort, bis SuperGrok
-abbrach). Darum sagt jedes Ergebnis dem Modell, dass es jetzt antworten und kein Werkzeug mehr rufen soll, und derselbe Aufruf mit
-denselben Feldern feuert binnen 20 s nur einmal ein Ereignis.
-
 Gegen Missbrauch (Wort des Betreibers vom 10.11.2026: „Stelle sicher, dass man nicht Hacking betreiben kann“): Ein Besucher kann die KI
-überreden, Werkzeuge zu rufen. Darum gibt es hier nichts, was im Haus etwas bewirkt, und harte Grenzen, die nicht vom Modell
-abhängen: höchstens 6 Ereignisse je Minute, je Feld 300 druckbare Zeichen, immer dasselbe Ergebnis.
+überreden, Werkzeuge zu rufen. Darum gibt es hier nichts, was im Haus etwas bewirkt, und harte Grenzen, die nicht vom Modell abhängen:
+höchstens 6 Ereignisse je Minute, je Feld 300 druckbare Zeichen, derselbe Aufruf binnen 20 s und dasselbe Werkzeug binnen 3 s nur
+einmal, immer dasselbe Ergebnis. Jedes Ergebnis sagt dem Modell, dass es jetzt antworten und kein Werkzeug mehr rufen soll (ein
+schnelles Modell rief am 10.11.2026 zehnmal `auflegen` in einer Antwort).
 
-Grenzen, mit Absicht: Die Werkzeuge rufen keinen Dienst und lesen keinen Zustand, als Antwort nur ein fester Satz. Was der Besucher
-sagt, landet nur als Text im Ereignis (je Feld höchstens 300 Zeichen) und nie im Log. `tuer_assistent.stand` zeigt „aktiv“, das
-zuletzt gerufene Werkzeug und, ob Auflegen möglich ist.
-Der Sprachassistent „Tür“ nutzt als Erkennung `stt.empfang` und als Agenten `conversation.empfang`; beide reichen weiter
-(STT_QUELLE; der Agent an den, der in `select.empfang_ki` gewählt ist). Werkzeuge und Anweisung bleiben beim Agenten dahinter.
-Welche Agenten zur Wahl stehen, steht nur in configuration.yaml, je mit der Zeit in Sekunden, nach der die Ersatzantwort kommt:
-    tuer_assistent:
-      agenten:
-        conversation.tur_assistent: 8
-        conversation.tur_assistent_b: 15
-So lässt sich ein zweites Modell oder ein anderer Anbieter am echten Klingeln vergleichen, ohne den Sprachassistenten umzustellen
-(Wort des Betreibers vom 11.11.2026: „Lass uns zwei machen, dann kann man sie hin und her testen“). Die Liste ist die Grenze: Ein Agent mit den
-Werkzeugen von Home Assistant gehört nie hinein, denn wer hier steht, spricht mit Fremden. Jeder Agent der Liste braucht dieselbe
-Anweisung und als Werkzeuge nur „Tür-Assistent“.
-Grok Voice (Sprache zu Sprache, `sprache.py`; seit 11.11.2026): Mit den Einstellungen am Eintrag (Einstellungen → Geräte & Dienste →
-Tür-Assistent → Konfigurieren, `config_flow.py`) meldet sich die Integration selbst als Innenstation an der Türstation an und nimmt
-deren Rufe an; einen Ersatzweg gibt es nicht (sein Wort vom 11.11.2026 abends: „wenn es kaputt geht, dann bleibt es halt kaputt“).
-`tuer_assistent.auflegen` beendet auch dieses Gespräch.
-Einstellungen (seit 2.6.0; sein Wort vom 14.11.2026: „die Integration braucht eine konfigurierbare Oberfläche, und dort können wir
-unsere Instruction reinladen und auch die Klartextnamen, vielleicht weiter oben, damit man sie dann schnell editieren kann. Dann können
-wir die Helper löschen“): oben der Bewohner mit Anrede und die Angaben (je Zeile `name: wert`, etwa die Namen der anderen Klingeln);
-darunter die Begrüßung und die Anweisung als Text (Vorlagen; die Vorgaben stehen in `vorgabe.py` und gelten, solange dort kein
-eigener Text steht), xAI (Schlüssel, Modell, Stimme, Stichwörter für die Erkennung) und die Türstation (Adresse, Nebenstelle,
-Passwort, Ports); zuletzt „Mitschrift speichern“. Helfer braucht die Integration keine. Bewohner, Angaben, Begrüßung und Anweisung liest jeder Ruf frisch; ändert sich etwas an der Verbindung (VERBINDUNG),
-lädt der Eintrag neu: Grok Voice hält an (ein laufender Ruf endet) und startet neu, ohne Neustart von Home Assistant. Der Block
-`grok_voice:` unter `tuer_assistent:` in configuration.yaml (Schlüssel, Station, Passwort …) gilt nur, solange der Eintrag keine
-Einstellungen hat: Dann übernimmt er die Werte einmal, danach wird der Block ignoriert; solange er dasteht, sagt ein Hinweis unter
-Reparaturen, dass er weg kann. Ohne Schlüssel, Station und Passwort bleibt Grok Voice aus.
-Nachsehen: `tuer_assistent.stand` (Anmeldung, xAI, letzter Ruf), der Sensor „Empfang Störung“, Einstellungen → Reparaturen (Schlüssel,
-Anmeldung), das Tagebuch der letzten Rufe in `.storage/tuer_assistent.rufe` und die Diagnose am Eintrag (`diagnostics.py`, ohne
-Mitschriften, Namen und Schlüssel). Was von der Qualitätsskala von Home Assistant hier gilt und was nicht: `quality_scale.yaml`.
-Einbinden: Ordner nach /config/custom_components/tuer_assistent, Neustart, dann „Integration hinzufügen“ → Tür-Assistent (führt gleich
-in die Einstellungen); die Zeile „tuer_assistent:“ in configuration.yaml legt den Eintrag ebenso an und trägt die Agentenliste der
-Text-Strecke. Entfernen: erst im Sprachassistenten „Tür“ wieder die Erkennung und den Agenten von SuperGrok wählen und bei diesem die
-Werkzeugliste abwählen, dann Eintrag und Zeile löschen, Neustart.
+Einstellungen (config_flow.py; Wort des Betreibers vom 14.11.2026: „die Integration braucht eine konfigurierbare Oberfläche, und dort
+können wir unsere Instruction reinladen und auch die Klartextnamen“): oben der Bewohner mit Anrede und die Angaben (je Zeile
+`name: wert`), darunter Begrüßung und Anweisung (Vorlagen; die Vorgaben in vorgabe.py gelten, solange dort kein eigener Text steht),
+xAI (Schlüssel, Modell, Stimme, Stichwörter) und die Türstation (Adresse, Nebenstelle, Passwort, Ports); zuletzt „Mitschrift
+speichern“. Bewohner, Angaben, Begrüßung und Anweisung liest jeder Ruf frisch; ändert sich etwas an der Verbindung (VERBINDUNG), lädt
+der Eintrag neu: Grok Voice hält an (ein laufender Ruf endet) und startet neu, ohne Neustart von Home Assistant. Ohne Schlüssel,
+Station und Passwort bleibt Grok Voice aus. Seit 2.7.0 ist das der einzige Weg (Wort des Betreibers vom 15.11.2026: „den alten Textweg
+kannst du komplett entfernen“): keine Text-Agenten, keine Sprachkette, keine Zeile in configuration.yaml.
+
+Nachsehen: `tuer_assistent.stand` (Anmeldung, xAI, Modell, letzter Ruf), der Sensor „Empfang Störung“, Einstellungen → Reparaturen
+(Schlüssel, Anmeldung, Mitschriften), das Tagebuch der letzten Rufe in `.storage/tuer_assistent.rufe` und die Diagnose am Eintrag.
+Einbinden: Ordner nach /config/custom_components/tuer_assistent, Neustart, „Integration hinzufügen“ → Tür-Assistent.
+Entfernen: Eintrag löschen, Ordner und `.storage/tuer_assistent.rufe` löschen, Neustart.
 """
 from __future__ import annotations
 
 from collections.abc import Mapping
 import logging
 import re
-import sys
 
 import voluptuous as vol
 
 import homeassistant.helpers.config_validation as cv
-from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_HOMEASSISTANT_STOP
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import issue_registry as ir, llm
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
@@ -87,24 +62,17 @@ from homeassistant.util import dt as dt_util
 DOMAIN = "tuer_assistent"
 EREIGNIS = "tuer_assistent_werkzeug"
 MITSCHRIFT = "tuer_assistent_gespraech"
-STT_QUELLE = "stt.grok_voice_stt"
-TTS_QUELLE = "tts.grok_voice_tts"
-TTS_STIMME = "eve"
-TTS_ERSATZ = ("tts.home_assistant_cloud", "de-DE", {"voice": "KatjaNeural"})
-KI_QUELLE = "conversation.tur_assistent"
-UNVERSTAENDLICH = "(unverständlich)"  # steht so auch in der Anweisung
-WAHL = "select.empfang_ki"
-ZEIT = 8  # s bis zur Ersatzantwort, wenn configuration.yaml nichts nennt
-PLATTFORMEN = ["stt", "conversation", "select", "tts", "binary_sensor"]
+PLATTFORMEN = ["binary_sensor"]
 STAND = f"{DOMAIN}.stand"
-# Ein Gerät (Dienst) für alle Entitäten: eine Seite mit Zustand, Wahl der KI und dem Knopf „Diagnose herunterladen“.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+# Ein Gerät (Dienst) für den Sensor: eine Seite mit Zustand und dem Knopf „Diagnose herunterladen“.
 GERAET = DeviceInfo(identifiers={(DOMAIN, "empfang")}, name="Empfang", manufacturer="ilihack", model="Tür-Assistent (Grok Voice)",
                     entry_type=DeviceEntryType.SERVICE)
 LAENGE = 300
 SPERRE = 20  # s, in denen derselbe Aufruf kein zweites Ereignis feuert
 EINMAL = 3  # s, in denen dasselbe Werkzeug auch mit anderen Feldern kein zweites Ereignis feuert (ein Aufruf je Antwort)
 JE_MINUTE = 6  # Ereignisse aller Werkzeuge zusammen
-# Vorgaben der Einstellungen, für configuration.yaml und die Maske in config_flow.py (die Texte stehen in vorgabe.py)
+# Vorgaben der Einstellungen für die Maske in config_flow.py (die Texte stehen in vorgabe.py)
 VORGABEN = {"kennung": "9904", "port": 5062, "station_port": 5060, "stimme": "eve", "modell": "grok-voice-latest",
             "mitschrift_speichern": True, "anrede": "Herr"}
 ANREDEN = ("Herr", "Frau", "Familie", "ohne")  # wie die Werkzeuge den Bewohner nennen: „Herrn Muster“, „Frau Muster“, „Familie Muster“, ohne: der ganze Name
@@ -113,21 +81,10 @@ PFLICHT = ("schluessel", "station", "passwort")  # ohne sie bleibt Grok Voice au
 VERBINDUNG = ("schluessel", "station", "kennung", "passwort", "port", "station_port", "stimme", "modell", "mitschrift_speichern")
 RESERVIERT = ("bewohner", "anrede", "begruessung", "grok_voice")  # Variablen der Anweisung, die nicht aus dem Feld „Angaben“ kommen
 AUS = "aus (nicht eingerichtet)"
-CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.All(lambda v: v or {}, vol.Schema({
-    vol.Optional("agenten"): vol.All(vol.Schema({cv.entity_domain("conversation"): vol.All(vol.Coerce(float), vol.Range(min=2, max=60))}),
-                                     vol.Length(min=1)),
-    vol.Optional("grok_voice"): vol.Schema({vol.Required("schluessel"): cv.string, vol.Required("station"): cv.string,
-                                            vol.Required("passwort"): cv.string, vol.Optional("kennung", default=VORGABEN["kennung"]): cv.string,
-                                            vol.Optional("port", default=VORGABEN["port"]): cv.port,
-                                            vol.Optional("station_port", default=VORGABEN["station_port"]): cv.port,
-                                            vol.Optional("stimme", default=VORGABEN["stimme"]): cv.string,
-                                            vol.Optional("mitschrift_speichern", default=VORGABEN["mitschrift_speichern"]): cv.boolean}),
-}))}, extra=vol.ALLOW_EXTRA)
 _LOGGER = logging.getLogger(__name__)
 
-# Name, Beschreibung für das Modell, Textfelder, Ergebnis für das Modell. Der Bewohner steht nicht im Code (sein Wort vom 12.11.2026:
-# „Namen sollen generell sowieso nicht fest drin stehen … wenn jemand Neues noch einzieht“): {dat}, {akk}, {nom} füllt werkzeuge() aus
-# den Einstellungen (Felder „Bewohner“ und „Anrede“: „Herrn <Nachname>“), ohne Namen allgemein.
+# Name, Beschreibung für das Modell, Textfelder, Ergebnis für das Modell. Der Bewohner steht nicht im Code: {dat}, {akk}, {nom} füllt
+# werkzeuge() aus den Einstellungen (Felder „Bewohner“ und „Anrede“: „Herrn <Nachname>“), ohne Namen allgemein.
 WEITER = " Rufe jetzt kein Werkzeug mehr auf, sondern antworte dem Besucher mit dem vorgesehenen Satz, in seiner Sprache."
 WERKZEUGE = (
     ("bewohner_rufen",
@@ -193,48 +150,15 @@ def werkzeuge(hass: HomeAssistant) -> list[tuple[str, str, tuple[str, ...], str]
     return [(name, text.format(**f), felder, ergebnis.format(**f)) for name, text, felder, ergebnis in WERKZEUGE]
 
 
-VOIP = "custom_components.voip_stack."
-
-
-def agenten(hass: HomeAssistant) -> dict[str, float]:
-    """Die Agenten, an die der Empfang weiterreichen darf (aus configuration.yaml), je mit ihrer Zeitgrenze."""
-    return (hass.data.get(DOMAIN) or {}).get("agenten") or {KI_QUELLE: ZEIT}
-
-
-def gewaehlt(hass: HomeAssistant) -> tuple[str, float]:
-    """Der in select.empfang_ki gewählte Agent, wenn er in der Liste steht; sonst der erste der Liste."""
-    liste = agenten(hass)
-    wahl = hass.states.get(WAHL)
-    name = wahl.state if wahl is not None and wahl.state in liste else next(iter(liste))
-    return name, liste[name]
-
-
-def _voip():
-    """Ruf-Register und Beenden-Absicht des VoIP Stack, oder (None, None). Kein import: Ist er geladen, stehen sie in sys.modules."""
-    return (getattr(sys.modules.get(VOIP + "endpoint_lifecycle"), "call_registry", None),
-            getattr(sys.modules.get(VOIP + "endpoint_session"), "TerminationIntent", None))
-
-
 def auflegen(hass: HomeAssistant) -> str:
-    """Beendet jedes laufende Gespräch mit dem Assistenten der Nebenstelle und das von Grok Voice; sagt, was geschah. Wirft nie."""
+    """Beendet das laufende Gespräch von Grok Voice; sagt, was geschah. Wirft nie."""
     bruecke = (hass.data.get(DOMAIN) or {}).get("bruecke")
+    if bruecke is None:
+        return "nicht möglich: Grok Voice läuft nicht"
     try:
-        grok_voice = bool(bruecke and bruecke.auflegen())
-    except Exception:  # noqa: BLE001
-        grok_voice = False
-    register, absicht = _voip()
-    if register is None or absicht is None:  # ohne VoIP Stack (abgeschaltet, seit es Grok Voice als eigene Innenstation gibt)
-        if grok_voice:
-            return "aufgelegt (Grok Voice)"
-        return "kein Gespräch" if bruecke is not None else "nicht möglich: VoIP Stack nicht geladen oder geändert"
-    try:
-        reg = register(hass)
-        rufe = [s for s in list(reg.calls.values()) if s.route_kind == "assist" and s.live]
-        for s in rufe:
-            reg.request_termination(s.call_id, absicht("local_hangup"), generation=s.generation)
-    except Exception as err:  # noqa: BLE001  fremdes Inneres: jede Abweichung heißt nur „legt nicht auf“
+        return "aufgelegt" if bruecke.auflegen() else "kein Gespräch"
+    except Exception as err:  # noqa: BLE001
         return "nicht möglich: %s" % type(err).__name__
-    return "aufgelegt" if rufe or grok_voice else "kein Gespräch"
 
 
 def _stand(hass: HomeAssistant, plus: int = 0, **neu) -> None:
@@ -246,26 +170,24 @@ def _stand(hass: HomeAssistant, plus: int = 0, **neu) -> None:
     hass.states.async_set(STAND, "aktiv", attr)
 
 
-class Werkzeug(llm.Tool):
-    """Ein Werkzeug, das nur ein Ereignis feuert."""
-
-    integration = DOMAIN
+class Werkzeug:
+    """Ein Werkzeug, das nur ein Ereignis feuert; sprache.py ruft es, wenn xAI es aufruft."""
 
     def __init__(self, name: str, beschreibung: str, felder: tuple[str, ...], ergebnis: str) -> None:
         self.name = name
         self.description = beschreibung
         self.felder = felder
         self.ergebnis = ergebnis
-        self.parameters = vol.Schema({vol.Optional(f, default=""): cv.string for f in felder})
         self.ohne = ""  # nach einem Aufruf: warum kein Ereignis gefeuert wurde (für den Ablauf im Tagebuch, sprache.py), sonst leer
 
-    async def async_call(self, hass: HomeAssistant, tool_input: llm.ToolInput, llm_context: llm.LLMContext):
+    async def rufen(self, hass: HomeAssistant, argumente: Mapping) -> dict:
+        """Feuert das Ereignis, wenn die Grenzen es zulassen, und gibt das Ergebnis für das Modell zurück."""
         daten = {"werkzeug": self.name}
         for f in self.felder:
-            roh = "".join(z if z.isprintable() else " " for z in str(tool_input.tool_args.get(f) or ""))
+            roh = "".join(z if z.isprintable() else " " for z in str(argumente.get(f) or ""))
             daten[f] = " ".join(roh.split())[:LAENGE]
-        merk = hass.data.setdefault(DOMAIN, {"letzte": {}, "zeiten": []})
-        letzte, zeiten = merk["letzte"], merk["zeiten"]
+        merk = hass.data.setdefault(DOMAIN, {})
+        letzte, zeiten = merk.setdefault("letzte", {}), merk.setdefault("zeiten", [])
         jetzt = dt_util.utcnow().timestamp()
         schluessel = tuple(daten.items())
         doppelt = jetzt - letzte.get(schluessel, 0) < SPERRE or jetzt - letzte.get(self.name, 0) < EINMAL
@@ -282,25 +204,12 @@ class Werkzeug(llm.Tool):
         _stand(hass, plus=1, zuletzt=self.name, zuletzt_um=dt_util.now().isoformat(timespec="seconds"))
         self.ohne = "doppelt" if doppelt else "mehr als %d je Minute" % JE_MINUTE if zuviel else ""
         _LOGGER.info("Werkzeug %s aufgerufen%s", self.name, " (kein Ereignis: %s)" % self.ohne if self.ohne else "")
-        ergebnis = {"ergebnis": self.ergebnis + WEITER}
-        # Ab Home Assistant 2026.10 erwartet der Kern ein ToolResult (ein bloßes dict geht nur noch bis 2027.11).
-        return llm.ToolResult(data=ergebnis) if hasattr(llm, "ToolResult") else ergebnis
+        return {"ergebnis": self.ergebnis + WEITER}
 
 
-class TuerAPI(llm.API):
-    """Die Werkzeugliste, wie sie ein Gesprächsagent wählen kann."""
-
-    def __init__(self, hass: HomeAssistant) -> None:
-        super().__init__(hass=hass, id=DOMAIN, name="Tür-Assistent")
-
-    async def async_get_api_instance(self, llm_context: llm.LLMContext) -> llm.APIInstance:
-        return llm.APIInstance(api=self, api_prompt="", llm_context=llm_context,
-                               tools=[Werkzeug(*w) for w in werkzeuge(self.hass)])
-
-
-async def _starten(hass: HomeAssistant, werte: Mapping | None, quelle: str) -> None:
+async def _starten(hass: HomeAssistant, werte: Mapping | None) -> None:
     """Startet Grok Voice mit diesen Einstellungen neu (eine laufende Innenstation hält vorher sauber an); ohne Schlüssel, Station und
-    Passwort bleibt es aus. `quelle` sagt der Diagnose, woher sie kommen."""
+    Passwort bleibt es aus."""
     await _stoppen(hass)
     if not werte or not all(werte.get(k) for k in PFLICHT):
         _stand(hass, grok_voice=AUS)
@@ -308,10 +217,10 @@ async def _starten(hass: HomeAssistant, werte: Mapping | None, quelle: str) -> N
     from .sprache import async_starten
 
     daten = hass.data[DOMAIN]
-    daten["grok_voice"] = quelle
+    daten["grok_voice"] = "Oberfläche"
     try:
         bruecke = await async_starten(hass, dict(werte))
-    except Exception:  # noqa: BLE001  ein Fehler beim Start legt nur Grok Voice still, nicht Werkzeuge, Dienst und Sensor „Empfang Störung“
+    except Exception:  # noqa: BLE001  ein Fehler beim Start legt nur Grok Voice still, nicht Dienst und Sensor „Empfang Störung“
         _LOGGER.warning("Grok Voice: Start gescheitert; ohne Grok Voice weiter", exc_info=True)
         bruecke = None
     daten["bruecke"] = bruecke
@@ -332,11 +241,9 @@ async def _stoppen(hass: HomeAssistant, grund: str = "Einstellungen geändert od
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    llm.async_register_api(hass, TuerAPI(hass))
+    """Der Dienst tuer_assistent.auflegen, der Stand und das Anhalten mit Home Assistant; Grok Voice startet mit dem Eintrag."""
     _stand(hass)
-    daten = hass.data.setdefault(DOMAIN, {"letzte": {}, "zeiten": []})
-    daten["agenten"] = dict((config.get(DOMAIN) or {}).get("agenten") or {KI_QUELLE: ZEIT})
-    daten["yaml"] = (config.get(DOMAIN) or {}).get("grok_voice")  # gilt nur, solange der Eintrag keine Optionen hat (async_setup_entry)
+    hass.data.setdefault(DOMAIN, {})
 
     async def dienst(call: ServiceCall) -> None:
         """Ohne Gespräch geschieht nichts; nur wenn Auflegen gar nicht geht, ein Fehler (die Automation ruft mit continue_on_error)."""
@@ -353,23 +260,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await _stoppen(hass, "Home Assistant hält an")
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, anhalten)
-
-    async def pruefen(_event) -> None:
-        """Nach dem Start: Sind die zwei Namen des VoIP Stack noch da? (wartung.py stand liest das Attribut.)"""
-        bereit = hass.data[DOMAIN].get("bruecke") is not None or all(_voip())
-        _stand(hass, auflegen="bereit" if bereit else "nicht möglich: VoIP Stack nicht geladen oder geändert")
-
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, pruefen)
-    async def eintrag() -> None:
-        """Legt beim ersten Start den Eintrag an, über den Home Assistant die zwei Entitäten annimmt."""
-        try:
-            await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_IMPORT}, data={})
-        except Exception:  # noqa: BLE001  ohne Eintrag bleiben Werkzeuge und Dienst trotzdem da
-            _LOGGER.warning("Eintrag für die Entitäten des Empfangs nicht angelegt", exc_info=True)
-
-    if not hass.config_entries.async_entries(DOMAIN):  # ohne Eintrag (erster Start): Grok Voice aus configuration.yaml, bis er da ist
-        await _starten(hass, daten["yaml"], "configuration.yaml")
-        hass.async_create_task(eintrag())
     return True
 
 
@@ -386,25 +276,17 @@ async def _geaendert(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Die Entitäten des Empfangs und Grok Voice mit den Optionen des Eintrags. Hat er noch keine, übernimmt er einmal den Block
-    grok_voice aus configuration.yaml; danach gelten nur die Optionen (geändert in der Oberfläche, config_flow.py)."""
-    yaml = hass.data[DOMAIN].get("yaml")
-    if yaml and not entry.options:
-        hass.config_entries.async_update_entry(entry, options=dict(yaml))
+    """Der Sensor „Empfang Störung“ und Grok Voice mit den Optionen des Eintrags (geändert in der Oberfläche, config_flow.py)."""
     hass.data[DOMAIN]["verbindung"] = _verbindung(entry.options)
     entry.async_on_unload(entry.add_update_listener(_geaendert))
-    if yaml:  # übernommen oder ignoriert: Der Block kann weg (der Hinweis verschwindet beim ersten Start ohne ihn)
-        ir.async_create_issue(hass, DOMAIN, "grok_voice_yaml", is_fixable=False, severity=ir.IssueSeverity.WARNING,
-                              translation_key="grok_voice_yaml")
-    else:
-        ir.async_delete_issue(hass, DOMAIN, "grok_voice_yaml")
-    await _starten(hass, entry.options, "Oberfläche")
+    ir.async_delete_issue(hass, DOMAIN, "grok_voice_yaml")  # Hinweis aus 2.6.0 (alter YAML-Block); seit 2.7.0 gibt es ihn nicht mehr
+    await _starten(hass, entry.options)
     await hass.config_entries.async_forward_entry_setups(entry, PLATTFORMEN)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Auch beim Neuladen nach geänderten Optionen: Entitäten entladen, Grok Voice anhalten (ein laufender Ruf endet)."""
+    """Auch beim Neuladen nach geänderten Optionen: Sensor entladen, Grok Voice anhalten (ein laufender Ruf endet)."""
     if ok := await hass.config_entries.async_unload_platforms(entry, PLATTFORMEN):
         await _stoppen(hass)
     return ok
