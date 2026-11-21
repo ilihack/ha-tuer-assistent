@@ -1,13 +1,15 @@
 # Tür-Assistent („Empfang“) für Home Assistant
 
 Ein Klingelknopf an einer Dahua-Türstation, hinter dem eine KI antwortet: Sie fängt Paketboten ab und schickt sie zur Paketbox. Sie sagt
-Besuchern, wo sie klingeln müssen, gibt dem Bewohner Bescheid, nimmt Nachrichten an und legt nach der Verabschiedung auf. Im Haus kann sie
+Besuchern, wo sie klingeln müssen, gibt dem Bewohner Bescheid, nimmt Nachrichten an und legt nach der Verabschiedung auf. Mit einem
+eigenen SIP-Zugang stellt sie Dringendes zu seinem Telefon durch; die Tür öffnet er dann selbst mit der Taste 1. Im Haus kann die KI
 nichts schalten. Eingerichtet wird alles in der Oberfläche von Home Assistant: Namen, Begrüßung, Anweisung (Prompt), xAI-Schlüssel,
-Türstation.
+Türstation, SIP-Zugang.
 
 *In English:* a Home Assistant custom integration that registers as a SIP indoor station at a door station (tested with Dahua VTO) and
 lets xAI Grok Voice talk to visitors, speech to speech: it sends couriers to the parcel box, tells visitors which bell to ring, notifies
-the resident and takes messages. It cannot switch or open anything. Everything is configured in the UI (names, greeting, prompt, xAI key,
+the resident and takes messages; with an optional SIP account it forwards urgent visitors to the resident's phone, where key 1 can open
+the door through an automation of your own. The AI itself cannot switch or open anything. Everything is configured in the UI (names, greeting, prompt, xAI key,
 door station). The built-in prompt and the tool texts are German; the prompt can be replaced in the UI.
 
 ## Wofür
@@ -15,7 +17,8 @@ door station). The built-in prompt and the tool texts are German; the prompt can
 - **Zusteller:** in die Paketbox, an die richtige Klingel oder, ohne Unterschrift, vor die Haustür, ohne dass jemand im Haus gestört wird.
 - **Besucher:** finden den richtigen Knopf; will jemand zum Bewohner, bekommt der eine Meldung aufs Handy.
 - **Nachrichten:** Ein Besucher hinterlässt etwas für den Bewohner; es kommt als Meldung, dazu am Ende das ganze Gespräch als Text.
-- **Abwesenheit:** Ist niemand da, sagt die KI das für den Bewohner (nicht für Mieter) und ruft ihn nur bei Dringendem.
+- **Abwesenheit:** Ist niemand da, sagt die KI das für den Bewohner (nicht für Mieter) und ruft ihn nur bei Dringendem; mit SIP-Zugang
+  klingelt dann sein Telefon und er spricht selbst mit dem Besucher.
 
 ## Unterstützte Geräte
 
@@ -78,7 +81,7 @@ Besucher drückt den Knopf
 
 | Werkzeug | Felder | Was passiert |
 |---|---|---|
-| `bewohner_rufen` | anliegen | Ereignis; die Automation lässt das Handy klingeln; danach legt die Integration auf (Station frei für die App) |
+| `bewohner_rufen` | anliegen | Ereignis; die Automation lässt das Handy klingeln; danach legt die Integration auf (Station frei für die App). Mit SIP-Zugang und erfüllter Bedingung ruft die Integration stattdessen sein Telefon an (siehe Weiterleitung) |
 | `nachricht_weitergeben` | fuer, nachricht | Ereignis; die Automation schickt den Text aufs Handy (nur für den Bewohner, nie für Mieter); nach 8 s Stille legt die Integration auf |
 | `auflegen` | – | Ruf endet, sobald die Verabschiedung gespielt ist |
 
@@ -96,8 +99,10 @@ xAI bekommt nur diese drei Funktionen, keine eigenen Werkzeuge von xAI (Websuche
 | Zustand | `tuer_assistent.stand` | Anmeldung, xAI, das Modell, das xAI zuletzt genommen hat, letztes Werkzeug, letzter Ruf mit Grund des Endes |
 | Sensor „Empfang Störung“ (Diagnose) | `binary_sensor.empfang_stoerung` | an, wenn der Knopf nicht gehen würde; Attribut `grund` |
 | Dienst | `tuer_assistent.auflegen` | beendet das laufende Gespräch |
+| Dienst | `tuer_assistent.anruf_testen` | Probeanruf über den SIP-Zugang; Ergebnis als Antwort des Dienstes |
 | Ereignis | `tuer_assistent_grok_voice` | `klingel`, `angenommen`, `abgelehnt`, `ende` (mit Mitschrift, Grund, `stoerung` und `betrifft_bewohner`) |
 | Ereignis | `tuer_assistent_werkzeug` | ein Werkzeug der KI wurde gerufen |
+| Ereignis | `tuer_assistent_taste` | eine Taste im weitergeleiteten Anruf (`taste`, `probe`) |
 | Ereignis | `tuer_assistent_gespraech` | Beginn und Ende einer Störung (Feld `ersatz`) |
 | Reparaturen | Einstellungen → Reparaturen | Schlüssel abgelehnt oder gesperrt; Anmeldung an der Station verloren; Warnung, dass Mitschriften gespeichert werden |
 | Diagnose | am Eintrag der Integration | Zustand und Tagebuch der Rufe, ohne Schlüssel, Adresse, Namen, Anweisung und Mitschrift |
@@ -138,6 +143,9 @@ Der Sensor hängt an einem Gerät „Empfang“; Namen und Symbole kommen aus `t
    | | Passwort der Nebenstelle | – | Passwort dieser Innenstation an der Station |
    | | Eigener SIP-Port | 5062 | UDP-Port, den die Station erreichen muss |
    | | SIP-Port der Türstation | 5060 | |
+   | Weiterleitung aufs Telefon | SIP-Server, SIP-Benutzer, SIP-Passwort | – | ein SIP-Zugang eines Anbieters (UDP, Digest); frei lassen, wenn nicht gewünscht |
+   | | Nummer, die angerufen wird | – | etwa das Handy des Bewohners; +49 … oder 0 … |
+   | | Weiterleiten, wenn | `{{ states('sensor.anwesend') == 'niemand' }}` | Vorlage; nur wenn sie wahr ergibt, wird weitergeleitet; leer: immer |
    | | Mitschrift speichern | an | Mitschriften im Tagebuch; aus hält sie heraus, auch aus den schon gespeicherten Rufen |
 
    Vor dem Speichern prüft die Maske die Zeilen der Angaben, rendert Begrüßung und Anweisung streng (eine Variable, die es nicht gibt,
@@ -147,6 +155,8 @@ Der Sensor hängt an einem Gerät „Empfang“; Namen und Symbole kommen aus `t
      Empfang gestört war (beides steht im Ereignis)
    - `tuer_assistent_werkzeuge.json`: Handy, Nachricht, Auflegen
    - `tuer_assistent_mitschrift.json`: Beginn und Ende von Störungen aufs Handy, auf Wunsch jeder Wortwechsel
+   - `tuer_taste_oeffnet.json` (nur mit SIP-Zugang): Taste 1 im weitergeleiteten Anruf öffnet die Haustür (Dienst der Integration
+     „Dahua VTO“; für eine andere Station die Aktion ersetzen)
    
    Sie nutzen das Skript `script.meldung` der eigenen Anlage (Push aufs Handy) und die zwei Helfer aus `beispiele/helfer.json`.
 5. `tuer_assistent.stand` zeigt im Attribut `grok_voice` den Wert „angemeldet als 9904“ und im Attribut `xai` den Wert „ok“;
@@ -170,6 +180,24 @@ den Text in der Maske anpassen oder ersetzen.
 - Welches Modell xAI wirklich nimmt, steht in `tuer_assistent.stand` (Attribut `modell`) und je Ruf im Tagebuch. Ein Wechsel steht
   einmal als Warnung im Log. Für einen Namen, den es nicht gibt, nimmt xAI still sein Standardmodell.
 
+### Weiterleitung aufs Telefon
+
+Ruft die KI `bewohner_rufen` (etwas ist dringend) und sind alle vier Felder des SIP-Zugangs gefüllt und „Weiterleiten, wenn“ wahr,
+wählt die Integration die Nummer über den Zugang, statt aufzulegen. Das Modell sagt dem Besucher, dass es verbindet; danach hört er
+den Freiton. Nimmt der Bewohner ab, geht der Ton direkt zwischen Station und Telefon (G.711 im Codec der Station, ohne xAI); legt einer
+auf, endet der Ruf. Jede Taste feuert `tuer_assistent_taste`; was sie bewirkt, steht in einer eigenen Automation (Beispiel: Taste 1
+öffnet die Haustür). Nimmt niemand ab (25 s, besetzt, abgelehnt, Störung), sagt der Empfang, dass er nicht erreichbar ist, und nimmt
+eine Nachricht an.
+
+- SIP: REGISTER vor dem Anruf und Abmelden danach, INVITE mit Digest (401 und 407), CANCEL, BYE in beide Richtungen; Tasten nach
+  RFC 4733 oder per SIP INFO. Hinter dem Router genügen in der Regel `rport` und der sofort gesendete Ton (Anbieter mit NAT-Erkennung);
+  ein Port muss nicht freigegeben werden.
+- Tasten zählen nur in Anrufen, die die Integration selbst gewählt hat; ein Anruf auf den Zugang wird mit 486 abgewiesen.
+- Höchstens eine Weiterleitung je Ruf und je 2 min.
+- Probe ohne Besucher: Entwicklerwerkzeuge → Aktionen → `tuer_assistent.anruf_testen`. Das Telefon spielt Signaltöne, jede Taste
+  quittiert ein hoher Ton; die Antwort nennt das Ergebnis und die erkannten Tasten (Ereignis mit `probe: true`, die Beispiel-Automation
+  öffnet dabei nichts).
+
 ### Von einer älteren Version kommend
 
 - Von 2.6.0: Die Zeile `tuer_assistent:` in `configuration.yaml` mit allem darunter entfernen; seit 2.7.0 liest die Integration dort
@@ -189,6 +217,7 @@ den Text in der Maske anpassen oder ersetzen.
 | Grund | Bedeutung |
 |---|---|
 | aufgelegt nach Verabschiedung / nach dem Bescheid | normales Ende |
+| Gespräch mit dir beendet (…) | weitergeleitet; einer hat aufgelegt oder vom Telefon kam 10 s kein Ton mehr |
 | Station hat aufgelegt | die Station hat das Gespräch beendet (bei Dahua nach 2 min) |
 | Station sendet keinen Ton mehr | die Station hat beendet, ohne es zu sagen, oder das Netz ist weg |
 | vom nächsten Klingeln abgelöst | die Station rief neu an, während der alte Ruf hier noch offen war |
@@ -210,7 +239,10 @@ den Text in der Maske anpassen oder ersetzen.
 - Die mitgelieferte Anweisung ist deutsch, auf ein Haus mit drei Wohnungen zugeschnitten und nennt den Bewohner „Herr“ mit Nachnamen;
   für ein anderes Haus oder eine andere Anrede den Text in der Maske anpassen.
 - Nur xAI Grok Voice als KI; erprobt nur an einer Dahua-Türstation.
-- Die Anmeldung an der Türstation prüft die Maske nicht vor dem Speichern; ob sie gilt, zeigt der Stand gleich danach.
+- Die Anmeldung an der Türstation prüft die Maske nicht vor dem Speichern; ob sie gilt, zeigt der Stand gleich danach. Den SIP-Zugang
+  auch nicht: dafür gibt es den Probeanruf.
+- Weiterleitung: nur SIP über UDP mit G.711; nimmt die Mailbox des Telefons vor 25 s ab, landet der Besucher dort. Die Texte für
+  „verbinden“ und „nicht erreichbar“ stehen im Code und sind deutsch.
 
 ## Entfernen
 
@@ -235,7 +267,9 @@ den Text in der Maske anpassen oder ersetzen.
       event_types: [tuer_assistent_grok_voice, tuer_assistent_gespraech, tuer_assistent_werkzeug]
   ```
   Die Automationen bekommen die Ereignisse trotzdem.
-- Die KI öffnet nichts. Ob der Bewohner da ist, sagt sie nur, wenn er weg ist: Dann bietet sie an, eine Nachricht weiterzugeben oder,
+- Die KI öffnet nichts. Die Tür öffnet nur der Bewohner selbst, mit einer Taste im Anruf, den die Integration gewählt hat, und nur über
+  eine eigene Automation. Der SIP-Zugang steht wie der Schlüssel in den Einstellungen; Log, Diagnose und Stand nennen weder Zugang
+  noch Nummer. Ob der Bewohner da ist, sagt die KI nur, wenn er weg ist: Dann bietet sie an, eine Nachricht weiterzugeben oder,
   wenn es dringend ist, sein Handy klingeln zu lassen. Für die Mieter nimmt sie nichts an und gibt nichts weiter. Das regelt die
   Anweisung; die harten Grenzen setzen die Werkzeuge.
 
@@ -245,9 +279,10 @@ Diese Dateien sind genau die, die in der Anlage des Autors laufen; sie werden na
 
 | Datei | Inhalt |
 |---|---|
-| `__init__.py` | Einstellungen lesen, die drei Werkzeuge mit ihren Grenzen, der Dienst `auflegen`, Start und Halt von Grok Voice |
+| `__init__.py` | Einstellungen lesen, die drei Werkzeuge mit ihren Grenzen, die Dienste `auflegen` und `anruf_testen`, Start und Halt von Grok Voice |
 | `sprache.py` | die Innenstation (`Bruecke`: Anmeldung, Rufe, Prüfung des Schlüssels, Tagebuch) und das Gespräch (`Ruf`: Ton, Ereignisse von xAI, Wächter) |
 | `sip.py` | reine Hilfen ohne Zustand und ohne Home Assistant: SIP zerlegen und beantworten, SDP, RTP, Digest, Adressen |
+| `weiterleitung.py` | die Weiterleitung aufs Telefon (`Anruf`: Anmeldung beim Anbieter, Wählen, Ton, Tasten, Auflegen), G.711-Töne, der Probeanruf |
 | `config_flow.py` | die Maske (Einrichten und „Konfigurieren“), Prüfungen vor dem Speichern |
 | `vorgabe.py` | mitgelieferte Begrüßung, Anweisung und Beispiel-Angaben |
 | `binary_sensor.py`, `diagnostics.py` | Sensor „Empfang Störung“, Diagnose |
@@ -263,11 +298,20 @@ Regeln für Änderungen:
 - Kein Name, keine Adresse, kein Schlüssel im Code; alles Persönliche steht in den Einstellungen des Eintrags.
 - Was der Besucher sagt, kommt nie ins Log; die Werkzeuge schalten nichts und lesen keinen Zustand.
 - Kommentare und Texte sind deutsch; jede Frist und jede Grenze als Konstante mit Kommentar, warum.
-- Die Prüfungen (73, mit gestellter Station und gestelltem xAI, Abdeckung jedes Moduls über 95 %) liegen im Projektordner der
-  Anlage (`pruefung/tests/test_tuer_assistent.py`, `test_grok_voice.py`, `test_oberflaeche.py`, `test_robust_*.py`), weil sie deren
+- Die Prüfungen (77, mit gestellter Station, gestelltem xAI und gestelltem SIP-Server des Anbieters; Abdeckung 95 %, jedes Modul
+  über 90 %) liegen im Projektordner der Anlage (`pruefung/tests/test_tuer_assistent.py`, `test_grok_voice.py`, `test_oberflaeche.py`,
+  `test_robust_*.py`, `test_weiterleitung.py`), weil sie deren
   Prüfstand brauchen; eine Änderung gilt erst, wenn sie dort grün sind.
 
 ## Stand
+
+Version 2.8.0 (21.11.2026):
+
+- Weiterleitung aufs Telefon über einen eigenen SIP-Zugang (neuer Abschnitt der Maske, `weiterleitung.py`): bei Dringendem Freiton für
+  den Besucher, Gespräch direkt zwischen Station und Telefon, Tasten als Ereignis `tuer_assistent_taste`; nimmt niemand ab, spricht der
+  Empfang weiter. Dienst `tuer_assistent.anruf_testen` für den Probeanruf. Die mitgelieferte Anweisung lässt das Modell sagen, was das
+  Ergebnis von `bewohner_rufen` vorgibt (verbinden oder Bescheid gegeben).
+- 77 Tests, Abdeckung 95 % (`weiterleitung.py` 93 %, die übrigen Module 95 bis 100 %).
 
 Version 2.7.0 (15.11.2026):
 

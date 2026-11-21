@@ -3,3 +3,9 @@ auflegen:
   description: >-
     Beendet das laufende Gespräch des Tür-Assistenten („Empfang“) an der Sprechanlage. Ohne laufendes Gespräch geschieht nichts.
     Das Ergebnis steht in tuer_assistent.stand (Attribut auflegen).
+anruf_testen:
+  name: Weiterleitung testen
+  description: >-
+    Ruft über den SIP-Zugang die eingetragene Nummer an, ohne Besucher: Signaltöne, jede Taste wird mit einem hohen Ton quittiert und
+    als Ereignis tuer_assistent_taste mit probe true gemeldet (öffnet nichts). Endet nach 30 s oder beim Auflegen; das Ergebnis kommt
+    als Antwort des Dienstes und steht in tuer_assistent.stand (Attribut weiterleitung).

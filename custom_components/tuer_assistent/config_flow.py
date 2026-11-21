@@ -11,6 +11,8 @@ weiter oben, damit man sie dann schnell editieren kann“):
   Feld bei der Vorgabe (oder leer), gilt die Vorgabe der Integration, auch die einer späteren Version.
 - „xAI“: Schlüssel, Modell, Stimme, Stichwörter für die Erkennung.
 - „Türstation“: Adresse, Nebenstelle, Passwort, Ports.
+- „Weiterleitung aufs Telefon“ (seit 2.8.0, weiterleitung.py): SIP-Server, Benutzer, Passwort, die Nummer, die angerufen wird, und
+  „Weiterleiten, wenn“ (Vorlage; leer: immer). Unvollständig bleibt die Weiterleitung aus; was fehlt, sagt der Stand oben in der Maske.
 - „Mitschrift speichern“.
 Ist Grok Voice eingerichtet, stehen alle Abschnitte außer dem ersten zugeklappt: Geändert werden meist nur die Namen.
 
@@ -43,11 +45,13 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+from homeassistant.helpers.template import Template
 
 from . import ANREDEN, DOMAIN, PFLICHT, STAND, VORGABEN, angaben_lesen, vorgabe
+from .weiterleitung import FELDER, nummer, stand as weiterleitung_stand
 
 TITEL = "Tür-Assistent (Empfang)"
-GEHEIM = ("schluessel", "passwort")
+GEHEIM = ("schluessel", "passwort", "sip_passwort")
 _VERDECKT = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
 _MEHRZEILIG = TextSelector(TextSelectorConfig(multiline=True))
 # Abschnitt → Felder in der Reihenfolge der Maske: (Name, Prüfer, Pflicht)
@@ -66,10 +70,15 @@ ABSCHNITTE: dict[str, tuple[tuple[str, object, bool], ...]] = {
                 ("passwort", _VERDECKT, False),
                 ("port", cv.port, True),
                 ("station_port", cv.port, True)),
+    "weiterleitung": (("sip_server", cv.string, False),
+                      ("sip_nutzer", cv.string, False),
+                      ("sip_passwort", _VERDECKT, False),
+                      ("ziel", cv.string, False),
+                      ("weiterleiten_wenn", TemplateSelector(), False)),
 }
 TEXT = ("station", "kennung", "stimme", "modell")  # dürfen nicht leer sein
 TEXTE = {"begruessung": vorgabe.BEGRUESSUNG, "anweisung": vorgabe.ANWEISUNG}  # vorbelegt; gespeichert wird nur, was davon abweicht
-VORSCHLAG = {**VORGABEN, "angaben": vorgabe.ANGABEN, **TEXTE}
+VORSCHLAG = {**VORGABEN, "angaben": vorgabe.ANGABEN, "weiterleiten_wenn": vorgabe.WEITERLEITEN_WENN, **TEXTE}
 
 
 def maske(vorschlag: Mapping, eingerichtet: bool) -> vol.Schema:
@@ -82,7 +91,8 @@ def maske(vorschlag: Mapping, eingerichtet: bool) -> vol.Schema:
             wert = vorschlag.get(name)
             art = vol.Required if pflicht else vol.Optional
             innen[art(name, description={"suggested_value": wert}) if wert not in (None, "") else art(name)] = pruefer
-        felder[vol.Required(abschnitt)] = section(vol.Schema(innen), {"collapsed": eingerichtet and abschnitt != "namen"})
+        art = vol.Optional if abschnitt == "weiterleitung" else vol.Required  # ganz ohne Eingabe darf der Browser sie weglassen
+        felder[art(abschnitt)] = section(vol.Schema(innen), {"collapsed": eingerichtet and abschnitt != "namen"})
     felder[vol.Required("mitschrift_speichern", default=bool(vorschlag.get("mitschrift_speichern", True)))] = cv.boolean
     return vol.Schema(felder)
 
@@ -110,6 +120,13 @@ async def pruefen(hass: HomeAssistant, werte: dict) -> tuple[str, dict[str, str]
         texte(hass, werte)
     except TemplateError as err:  # der Text von Jinja nennt die Zeile; er steht nur hier in der Maske
         return "vorlage", {"grund": str(err)[:300]}
+    if werte.get("ziel") and not nummer(werte["ziel"]):
+        return "ziel", {}
+    if werte.get("weiterleiten_wenn"):
+        try:
+            Template(str(werte["weiterleiten_wenn"]), hass).async_render(parse_result=False)
+        except TemplateError as err:
+            return "vorlage_weiter", {"grund": str(err)[:300]}
     try:
         async with asyncio.timeout(6):  # die Maske soll nicht lange hängen
             zustand = await schluessel_abfragen(hass, werte["schluessel"])
@@ -130,6 +147,8 @@ async def _schritt(flow, schritt: str, eingabe: dict | None, alt: Mapping, ferti
     if eingabe is not None:
         werte = flach(eingabe)
         werte.update({k: werte.get(k) or alt.get(k, "") for k in GEHEIM})  # leer gelassen: der gespeicherte Wert bleibt
+        if not any(werte.get(k) for k in FELDER if k != "sip_passwort"):  # Server, Benutzer und Nummer geleert: Weiterleitung aus
+            werte["sip_passwort"] = ""
         fehler, platz = await pruefen(flow.hass, werte)
         if not fehler:  # leere Felder und Texte, die der Vorgabe gleichen, werden nicht gespeichert: Dann gilt die Vorgabe
             return fertig({k: v for k, v in werte.items() if v not in (None, "") and not (k in TEXTE and _zeilen(v) == _zeilen(TEXTE[k]))})
@@ -137,7 +156,8 @@ async def _schritt(flow, schritt: str, eingabe: dict | None, alt: Mapping, ferti
     vorschlag = {**VORSCHLAG, **{k: v for k, v in alt.items() if k not in GEHEIM}, **flach(eingabe or {})}
     stand = flow.hass.states.get(STAND)
     platz = {"feld": "", "zeile": "", "grund": "", **platz,
-             "stand": ", ".join(str(stand.attributes.get(k)) for k in ("grok_voice", "xai", "modell") if stand and stand.attributes.get(k)) or "–"}
+             "stand": ", ".join(str(stand.attributes.get(k)) for k in ("grok_voice", "xai", "modell") if stand and stand.attributes.get(k)) or "–",
+             "weiterleitung": weiterleitung_stand(alt)}
     return flow.async_show_form(step_id=schritt, data_schema=maske(vorschlag, all(alt.get(k) for k in PFLICHT)),
                                 errors={"base": fehler} if fehler else {}, description_placeholders=platz)
 

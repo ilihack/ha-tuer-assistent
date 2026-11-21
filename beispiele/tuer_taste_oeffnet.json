@@ -1,0 +1,36 @@
+{
+  "id": "tuer_taste_oeffnet",
+  "alias": "Tür: Taste 1 öffnet die Haustür",
+  "description": "Hat der Empfang dich angerufen (Weiterleitung aufs Telefon über den SIP-Zugang, Tür-Assistent) und drückst du im Gespräch die 1, öffnet sie die Haustür über die Sprechanlage EG (wie der Türknopf auf dem Hub) und schreibt ins Logbuch. Das Ereignis tuer_assistent_taste kommt nur aus Anrufen, die die Integration selbst gewählt hat; im Probeanruf (probe: true) und bei anderen Tasten geschieht nichts. Seit 21.11.2026 nachts (deine Nachricht: „und schau das ich mit 1 die Tür öffnen kann“). Gepflegt in automations/tuer_taste_oeffnet.json.",
+  "triggers": [
+    {
+      "trigger": "event",
+      "event_type": "tuer_assistent_taste",
+      "event_data": {
+        "taste": "1",
+        "probe": false
+      }
+    }
+  ],
+  "conditions": [],
+  "actions": [
+    {
+      "action": "dahua_vto.open_door",
+      "data": {
+        "entity_id": "sensor.vto_eg_aussen",
+        "channel": 1,
+        "short_number": "HA"
+      }
+    },
+    {
+      "action": "logbook.log",
+      "continue_on_error": true,
+      "data": {
+        "name": "Haustür",
+        "entity_id": "sensor.vto_eg_aussen",
+        "message": "geöffnet mit Taste 1 im Anruf des Empfangs"
+      }
+    }
+  ],
+  "mode": "single"
+}

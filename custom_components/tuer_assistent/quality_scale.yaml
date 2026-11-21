@@ -11,7 +11,7 @@ rules:
   # --- Bronze ---
   action-setup:
     status: done
-    comment: Der Dienst tuer_assistent.auflegen wird in async_setup angemeldet.
+    comment: Die Dienste tuer_assistent.auflegen und tuer_assistent.anruf_testen werden in async_setup angemeldet.
   appropriate-polling:
     status: done
     comment: Nur der Sensor „Empfang Störung“ fragt nach, alle 30 s und nur den eigenen Zustand; den Schlüssel prüft die Integration stündlich.
@@ -68,7 +68,7 @@ rules:
   # --- Silber ---
   action-exceptions:
     status: done
-    comment: tuer_assistent.auflegen wirft nur, wenn Auflegen gar nicht geht (HomeAssistantError mit Übersetzung); ohne Gespräch geschieht nichts. Die Automation ruft mit continue_on_error.
+    comment: tuer_assistent.auflegen wirft nur, wenn Auflegen gar nicht geht (HomeAssistantError mit Übersetzung); ohne Gespräch geschieht nichts. Die Automation ruft mit continue_on_error. tuer_assistent.anruf_testen wirft ohne vollständigen SIP-Zugang (Übersetzung kein_zugang).
   config-entry-unloading:
     status: done
     comment: Der Sensor wird entladen und die Innenstation hält an (meldet sich an der Station ab); so auch beim Neuladen nach geänderten Optionen.

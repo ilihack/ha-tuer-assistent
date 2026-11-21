@@ -68,6 +68,24 @@
               "port": "UDP port on which the reception accepts calls from the door station.",
               "station_port": "SIP port of the door station."
             }
+          },
+          "weiterleitung": {
+            "name": "Forward to a phone",
+            "description": "When a visitor says it is important (the reception then calls “bewohner_rufen”), the reception calls the number through this SIP account. The visitor hears the ringing tone; when the resident answers, both talk to each other, and every key press fires the event tuer_assistent_taste (what a key does, e.g. 1 = open the door, belongs in an automation of your own). If nobody answers, the reception carries on. Active only with all four fields; test: action tuer_assistent.anruf_testen.",
+            "data": {
+              "sip_server": "SIP server",
+              "sip_nutzer": "SIP user",
+              "sip_passwort": "SIP password",
+              "ziel": "Number to call",
+              "weiterleiten_wenn": "Forward when"
+            },
+            "data_description": {
+              "sip_server": "Host name of the provider's SIP server, with :port if needed (default 5060, UDP).",
+              "sip_nutzer": "User name of the SIP account.",
+              "sip_passwort": "Password of the SIP account. Never shown: leave empty to keep it.",
+              "ziel": "Phone number, e.g. the mobile; +49 … or 0 … .",
+              "weiterleiten_wenn": "Template; forwarding only happens when it renders true, otherwise as without an account. Empty: always. The suggestion is the same condition as “weg” in the bundled instructions."
+            }
           }
         }
       }
@@ -78,7 +96,9 @@
       "passwort_fehlt": "The extension password is missing (section Door station).",
       "angaben": "Details, line {zeile}: expected “name: value” with a name of ASCII letters, digits and underscore that is not a duplicate and not bewohner, anrede, begruessung or grok_voice.",
       "vorlage": "Greeting or instructions cannot be rendered: {grund}",
-      "schluessel": "xAI does not accept the key: {grund}"
+      "schluessel": "xAI does not accept the key: {grund}",
+      "ziel": "The number to call is not a phone number (allowed: digits, starting with + or 0).",
+      "vorlage_weiter": "“Forward when” cannot be rendered: {grund}"
     },
     "abort": {
       "single_instance_allowed": "There is only one door assistant; its settings are under \"Configure\" on its entry."
@@ -88,7 +108,7 @@
     "step": {
       "init": {
         "title": "Door assistant (reception)",
-        "description": "Status: {stand}. Names, greeting and instructions apply from the next call. A change to xAI, the door station or “Store transcripts” restarts the reception; a call in progress ends. Key and password are never shown: leave them empty to keep them.",
+        "description": "Status: {stand}. Names, greeting and instructions apply from the next call. A change to xAI, the door station or “Store transcripts” restarts the reception; a call in progress ends. Key and password are never shown: leave them empty to keep them. Forwarding: {weiterleitung}.",
         "data": {
           "mitschrift_speichern": "Store transcripts"
         },
@@ -153,6 +173,24 @@
               "port": "UDP port on which the reception accepts calls from the door station.",
               "station_port": "SIP port of the door station."
             }
+          },
+          "weiterleitung": {
+            "name": "Forward to a phone",
+            "description": "When a visitor says it is important (the reception then calls “bewohner_rufen”), the reception calls the number through this SIP account. The visitor hears the ringing tone; when the resident answers, both talk to each other, and every key press fires the event tuer_assistent_taste (what a key does, e.g. 1 = open the door, belongs in an automation of your own). If nobody answers, the reception carries on. Active only with all four fields; test: action tuer_assistent.anruf_testen.",
+            "data": {
+              "sip_server": "SIP server",
+              "sip_nutzer": "SIP user",
+              "sip_passwort": "SIP password",
+              "ziel": "Number to call",
+              "weiterleiten_wenn": "Forward when"
+            },
+            "data_description": {
+              "sip_server": "Host name of the provider's SIP server, with :port if needed (default 5060, UDP).",
+              "sip_nutzer": "User name of the SIP account.",
+              "sip_passwort": "Password of the SIP account. Never shown: leave empty to keep it.",
+              "ziel": "Phone number, e.g. the mobile; +49 … or 0 … .",
+              "weiterleiten_wenn": "Template; forwarding only happens when it renders true, otherwise as without an account. Empty: always. The suggestion is the same condition as “weg” in the bundled instructions."
+            }
           }
         }
       }
@@ -163,7 +201,9 @@
       "passwort_fehlt": "The extension password is missing (section Door station).",
       "angaben": "Details, line {zeile}: expected “name: value” with a name of ASCII letters, digits and underscore that is not a duplicate and not bewohner, anrede, begruessung or grok_voice.",
       "vorlage": "Greeting or instructions cannot be rendered: {grund}",
-      "schluessel": "xAI does not accept the key: {grund}"
+      "schluessel": "xAI does not accept the key: {grund}",
+      "ziel": "The number to call is not a phone number (allowed: digits, starting with + or 0).",
+      "vorlage_weiter": "“Forward when” cannot be rendered: {grund}"
     }
   },
   "issues": {
@@ -190,12 +230,19 @@
   "exceptions": {
     "auflegen_nicht_moeglich": {
       "message": "Hanging up is not possible: {grund}"
+    },
+    "kein_zugang": {
+      "message": "No complete SIP account configured (section Forward to a phone)."
     }
   },
   "services": {
     "auflegen": {
       "name": "End the door assistant's call",
       "description": "Ends the running call of the door assistant (reception) at the door station. Without a running call nothing happens. The result is shown in tuer_assistent.stand (attribute auflegen)."
+    },
+    "anruf_testen": {
+      "name": "Test forwarding",
+      "description": "Calls the configured number through the SIP account without a visitor: signal tones, every key press is acknowledged with a high tone and reported as event tuer_assistent_taste with probe: true (opens nothing). Ends after 30 s or on hang-up; the result is returned as the action response and stored in tuer_assistent.stand (attribute weiterleitung)."
     }
   }
 }

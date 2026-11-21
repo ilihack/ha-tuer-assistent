@@ -2,7 +2,7 @@
 
 Enthält, was zur Fehlersuche taugt, und nichts, was nicht aus dem Haus soll: keinen Schlüssel, kein Passwort, keine Adresse der
 Station, keine Namen, keine Anweisung und keine Mitschrift; von den Einstellungen nur, welche gesetzt sind und wie die Angaben heißen,
-nie ihre Werte. Das Tagebuch der letzten Rufe kommt mit Zeiten,
+nie ihre Werte, vom SIP-Zugang nur, ob er vollständig ist (nie Server, Benutzer oder Nummer). Das Tagebuch der letzten Rufe kommt mit Zeiten,
 Zahlen, dem technischen Ablauf und dem Grund des Endes; was Besucher und Empfang gesagt haben, bleibt in `.storage/tuer_assistent.rufe`. Version und Manifest setzt
 Home Assistant selbst dazu.
 """
@@ -14,6 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from . import DOMAIN, STAND, VORGABEN, angaben_lesen
+from .weiterleitung import stand as weiterleitung_stand
 
 OHNE = ("mitschrift",)  # Felder eines Rufs, die nicht in die Diagnose gehören
 
@@ -36,7 +37,8 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
     aus["einstellungen"] = {"bewohner": bool(e.get("bewohner")), "anrede": e.get("anrede") or VORGABEN["anrede"], "angaben": angaben,
                             "begruessung": "eigene" if e.get("begruessung") else "Vorgabe",
                             "anweisung": "eigene, %d Zeichen" % len(str(e["anweisung"])) if e.get("anweisung") else "Vorgabe",
-                            "stichwoerter": bool(e.get("stichwoerter")), "modell": e.get("modell") or VORGABEN["modell"]}
+                            "stichwoerter": bool(e.get("stichwoerter")), "modell": e.get("modell") or VORGABEN["modell"],
+                            "weiterleitung": weiterleitung_stand(e), "weiterleiten_wenn": bool(e.get("weiterleiten_wenn"))}
     if bruecke is not None:
         jetzt = time.monotonic()  # seit wann: Die Störung kommt erst nach 3 min (Anmeldung) und 6 h (xAI), die Diagnose zeigt den Weg dahin
         aus["innenstation"] = {"kennung": bruecke.kennung, "port": bruecke.port, "angemeldet": bruecke.angemeldet, "xai": bruecke.xai,

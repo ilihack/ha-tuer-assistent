@@ -68,6 +68,24 @@
               "port": "UDP-Port, auf dem der Empfang die Rufe der Türstation annimmt.",
               "station_port": "SIP-Port der Türstation."
             }
+          },
+          "weiterleitung": {
+            "name": "Weiterleitung aufs Telefon",
+            "description": "Sagt ein Besucher, es sei wichtig (der Empfang ruft dann „bewohner_rufen“), ruft der Empfang über diesen SIP-Zugang die Nummer an. Der Besucher hört den Freiton; nimmt der Bewohner ab, sprechen beide miteinander, und jede Taste feuert das Ereignis tuer_assistent_taste (was die Taste bewirkt, etwa 1 = Tür auf, steht in einer eigenen Automation). Nimmt niemand ab, spricht der Empfang weiter. Erst mit allen vier Feldern aktiv; Probe: Dienst tuer_assistent.anruf_testen.",
+            "data": {
+              "sip_server": "SIP-Server",
+              "sip_nutzer": "SIP-Benutzer",
+              "sip_passwort": "SIP-Passwort",
+              "ziel": "Nummer, die angerufen wird",
+              "weiterleiten_wenn": "Weiterleiten, wenn"
+            },
+            "data_description": {
+              "sip_server": "Name des SIP-Servers des Anbieters, bei Bedarf mit :Port (sonst 5060, UDP).",
+              "sip_nutzer": "Benutzername des SIP-Zugangs.",
+              "sip_passwort": "Passwort des SIP-Zugangs. Wird nie angezeigt: leer lassen, dann bleibt es.",
+              "ziel": "Telefonnummer, etwa die des Handys; +49 … oder 0 … .",
+              "weiterleiten_wenn": "Vorlage; nur wenn sie wahr ergibt, wird weitergeleitet, sonst wie ohne Zugang. Leer: immer. Vorgeschlagen ist dieselbe Bedingung wie „weg“ in der mitgelieferten Anweisung."
+            }
           }
         }
       }
@@ -78,7 +96,9 @@
       "passwort_fehlt": "Das Passwort der Nebenstelle fehlt (Abschnitt Türstation).",
       "angaben": "Angaben, Zeile {zeile}: erwartet wird „name: wert“ mit einem Namen aus Buchstaben ohne Umlaute, Ziffern und Unterstrich, der nicht doppelt und nicht bewohner, anrede, begruessung oder grok_voice ist.",
       "vorlage": "Begrüßung oder Anweisung lässt sich nicht rendern: {grund}",
-      "schluessel": "xAI nimmt den Schlüssel nicht an: {grund}"
+      "schluessel": "xAI nimmt den Schlüssel nicht an: {grund}",
+      "ziel": "Die Nummer, die angerufen wird, ist keine Telefonnummer (erlaubt: Ziffern, am Anfang + oder 0).",
+      "vorlage_weiter": "„Weiterleiten, wenn“ lässt sich nicht rendern: {grund}"
     },
     "abort": {
       "single_instance_allowed": "Den Tür-Assistenten gibt es nur einmal; seine Einstellungen stehen am Eintrag unter „Konfigurieren“."
@@ -88,7 +108,7 @@
     "step": {
       "init": {
         "title": "Tür-Assistent (Empfang)",
-        "description": "Stand: {stand}. Namen, Begrüßung und Anweisung gelten ab dem nächsten Ruf. Ändert sich etwas an xAI, der Türstation oder „Mitschrift speichern“, startet der Empfang neu; ein laufender Ruf endet dabei. Schlüssel und Passwort werden nie angezeigt: leer lassen, dann bleiben sie, wie sie sind.",
+        "description": "Stand: {stand}. Namen, Begrüßung und Anweisung gelten ab dem nächsten Ruf. Ändert sich etwas an xAI, der Türstation oder „Mitschrift speichern“, startet der Empfang neu; ein laufender Ruf endet dabei. Schlüssel und Passwort werden nie angezeigt: leer lassen, dann bleiben sie, wie sie sind. Weiterleitung: {weiterleitung}.",
         "data": {
           "mitschrift_speichern": "Mitschrift speichern"
         },
@@ -153,6 +173,24 @@
               "port": "UDP-Port, auf dem der Empfang die Rufe der Türstation annimmt.",
               "station_port": "SIP-Port der Türstation."
             }
+          },
+          "weiterleitung": {
+            "name": "Weiterleitung aufs Telefon",
+            "description": "Sagt ein Besucher, es sei wichtig (der Empfang ruft dann „bewohner_rufen“), ruft der Empfang über diesen SIP-Zugang die Nummer an. Der Besucher hört den Freiton; nimmt der Bewohner ab, sprechen beide miteinander, und jede Taste feuert das Ereignis tuer_assistent_taste (was die Taste bewirkt, etwa 1 = Tür auf, steht in einer eigenen Automation). Nimmt niemand ab, spricht der Empfang weiter. Erst mit allen vier Feldern aktiv; Probe: Dienst tuer_assistent.anruf_testen.",
+            "data": {
+              "sip_server": "SIP-Server",
+              "sip_nutzer": "SIP-Benutzer",
+              "sip_passwort": "SIP-Passwort",
+              "ziel": "Nummer, die angerufen wird",
+              "weiterleiten_wenn": "Weiterleiten, wenn"
+            },
+            "data_description": {
+              "sip_server": "Name des SIP-Servers des Anbieters, bei Bedarf mit :Port (sonst 5060, UDP).",
+              "sip_nutzer": "Benutzername des SIP-Zugangs.",
+              "sip_passwort": "Passwort des SIP-Zugangs. Wird nie angezeigt: leer lassen, dann bleibt es.",
+              "ziel": "Telefonnummer, etwa die des Handys; +49 … oder 0 … .",
+              "weiterleiten_wenn": "Vorlage; nur wenn sie wahr ergibt, wird weitergeleitet, sonst wie ohne Zugang. Leer: immer. Vorgeschlagen ist dieselbe Bedingung wie „weg“ in der mitgelieferten Anweisung."
+            }
           }
         }
       }
@@ -163,7 +201,9 @@
       "passwort_fehlt": "Das Passwort der Nebenstelle fehlt (Abschnitt Türstation).",
       "angaben": "Angaben, Zeile {zeile}: erwartet wird „name: wert“ mit einem Namen aus Buchstaben ohne Umlaute, Ziffern und Unterstrich, der nicht doppelt und nicht bewohner, anrede, begruessung oder grok_voice ist.",
       "vorlage": "Begrüßung oder Anweisung lässt sich nicht rendern: {grund}",
-      "schluessel": "xAI nimmt den Schlüssel nicht an: {grund}"
+      "schluessel": "xAI nimmt den Schlüssel nicht an: {grund}",
+      "ziel": "Die Nummer, die angerufen wird, ist keine Telefonnummer (erlaubt: Ziffern, am Anfang + oder 0).",
+      "vorlage_weiter": "„Weiterleiten, wenn“ lässt sich nicht rendern: {grund}"
     }
   },
   "issues": {
@@ -190,12 +230,19 @@
   "exceptions": {
     "auflegen_nicht_moeglich": {
       "message": "Auflegen ist nicht möglich: {grund}"
+    },
+    "kein_zugang": {
+      "message": "Kein vollständiger SIP-Zugang eingetragen (Abschnitt Weiterleitung aufs Telefon)."
     }
   },
   "services": {
     "auflegen": {
       "name": "Gespräch des Tür-Assistenten beenden",
       "description": "Beendet das laufende Gespräch des Tür-Assistenten („Empfang“) an der Sprechanlage. Ohne laufendes Gespräch geschieht nichts. Das Ergebnis steht in tuer_assistent.stand (Attribut auflegen)."
+    },
+    "anruf_testen": {
+      "name": "Weiterleitung testen",
+      "description": "Ruft über den SIP-Zugang die eingetragene Nummer an, ohne Besucher: Signaltöne, jede Taste wird mit einem hohen Ton quittiert und als Ereignis tuer_assistent_taste mit probe: true gemeldet (öffnet nichts). Endet nach 30 s oder beim Auflegen; das Ergebnis kommt als Antwort des Dienstes und steht in tuer_assistent.stand (Attribut weiterleitung)."
     }
   }
 }

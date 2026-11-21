@@ -49,7 +49,11 @@ mit Port 0 ab.
   inzwischen neu, gilt dieser Aufruf dem vorigen Ruf). Nach „bewohner_rufen“ endet der Ruf ebenso nach der Antwort, damit die
   Sprechanlage frei ist und er sich über die App melden kann (Wort des Betreibers vom 11.11.2026 nachts: „solange der Grok damit redet, dann kann
   ich nicht telefonieren … direkt auflegen und sagen, ich hab Bescheid gesagt, der [Bewohner] könnte sich jeden Moment mit der Sprechanlage
-  verbinden“).
+  verbinden“). Ist ein SIP-Zugang eingetragen und gilt „Weiterleiten, wenn“, ruft die Integration stattdessen sein Telefon an
+  (weiterleitung.py; sein Wort vom 21.11.2026: „wenn jemand sagt es wäre wichtig weiterleitet. und schau das ich mit 1 die Tür öffnen
+  kann“): Nach dem Satz des Empfangs hört der Besucher den Freiton, nimmt er ab, geht der Ton direkt zwischen Station und Telefon (xAI
+  hört nicht mehr mit, die Fristen des Wächters ruhen, außer TON_AUS); legt einer auf, endet der Ruf. Nimmt er nicht ab, sagt der
+  Empfang NICHT_ERREICHT und das Gespräch geht weiter. Höchstens eine Weiterleitung je Ruf und je SPERRE_WEITER s.
 - Vollduplex (Wort des Betreibers vom 11.11.2026 abends: „Die Komplexität mit Mikrofon aus brauchst du nicht. Grok … hat selbst eine gute
   Echo-Unterbindung und die Außensprechanlage auch“): Der Ton des Besuchers geht immer zu xAI. Fängt er an zu sprechen, bricht xAI die
   laufende Antwort ab (bei server_vad von selbst); die Gegenstelle verwirft den noch nicht gespielten Ton und alles, was von dieser
@@ -110,8 +114,10 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.template import Template
 from homeassistant.util import dt as dt_util
 
-from . import DOMAIN, LAENGE, MITSCHRIFT, VORGABEN, Werkzeug, _stand, angaben_lesen, einstellungen, sauber, vorgabe, werkzeuge
+from . import (DOMAIN, ERGEBNIS_WEITER, LAENGE, MITSCHRIFT, NICHT_ERREICHT, VORGABEN, WEITER, Werkzeug, _stand, angaben_lesen,
+               einstellungen, formen, sauber, vorgabe, werkzeuge)
 from .sip import Angebot, adressen, antwort, digest, feld, rtp_nutzlast, sdp_antwort, sdp_lesen, waehlen, zerlege
+from .weiterleitung import Anruf, Zugang, freiton, zugang
 
 _LOGGER = logging.getLogger(__name__)
 URL = "wss://api.x.ai/v1/realtime?model="  # dahinter das Modell aus den Einstellungen
@@ -142,6 +148,8 @@ XAI_STILL = 6 * 3600  # s ohne erfolgreiche Prüfung: Störung
 GUTHABEN = "Guthaben aufgebraucht oder Ausgabengrenze erreicht"  # statt des Textes von xAI, der die Kennung des Teams enthält
 MITSCHRIFT_HOECHSTENS = 1800  # Zeichen der Mitschrift in der Meldung am Ende
 WIEDERHOLEN = (0.5, 1.0, 2.0)  # s, nach denen ein REGISTER ohne Antwort wiederholt wird (danach noch 1 s Warten)
+SPERRE_WEITER = 120  # s nach einer Weiterleitung, in denen keine neue gewählt wird (ein Scherzbold klingelt sonst Rufe am Stück)
+SATZ_HOECHSTENS = 8.0  # s, so lange darf der Satz des Empfangs vor dem Freiton höchstens dauern (unter KEINE_ANTWORT: dann ruht der Wächter)
 BEGRUESSUNG = "Hello! Hier ist der Empfang, wie kann ich helfen?"  # nur falls die Begrüßung aus den Einstellungen leer herauskommt
 
 
@@ -319,6 +327,12 @@ class Ruf:
         self.uhr = dt_util.now().isoformat(timespec="seconds")
         self.ablauf: list[list] = []  # [s seit Beginn, was geschah], für das Tagebuch; nie, was der Besucher sagt
         self.einmal: set[str] = set()  # Fehler, die dieser Ruf schon als Warnung gemeldet hat (danach nur noch im Debug-Log)
+        self.weiter: Anruf | None = None  # die Weiterleitung aufs Telefon (weiterleitung.py), höchstens eine je Ruf
+        self.uebergeben = False  # ab dem Freiton: Ton des Besuchers nicht mehr an xAI, Ton von xAI nicht mehr spielen
+        self.verbunden = False  # er hat abgenommen: Ton zwischen Station und Telefon
+        self.weiter_ergebnis = ""
+        self.xai_weg = ""  # xAI ist während der Weiterleitung weggebrochen (warum)
+        self.freiton_daten, self.freiton_pos, self.puffern = b"", 0, True
         self.schritt("INVITE der Station")
 
     def schritt(self, text: str) -> None:
@@ -407,6 +421,8 @@ class Ruf:
         """Leer, solange der Ruf vorankommt; sonst der Grund, ihn zu beenden. Jeder Zustand hat genau eine Frist, keiner bleibt ohne."""
         if self.dauerton and jetzt - self.zuletzt_rtp > TON_AUS:
             return "Station sendet keinen Ton mehr (%d s)" % TON_AUS
+        if self.uebergeben:  # Freiton oder Gespräch mit ihm: Fristen hat die Weiterleitung (KLINGELN, STILL) und die Station (2 min)
+            return ""
         # Spricht der Empfang, hält zuletzt_ton (je gespieltes Paket) alle Fristen frisch. Nicht wieder „ausgang nicht leer: keine Frist“
         # einführen: Ein Rest unter einer Paketlänge wartet auf das Ende der Antwort, stockt sie, liefe der Ruf bis HOECHSTENS.
         if self.besucher_spricht:  # vor xAI: Redet er, ist nicht xAI dran (auch wenn eine abgebrochene Antwort noch nicht fertig gemeldet ist)
@@ -422,6 +438,14 @@ class Ruf:
     # --- Ton ----------------------------------------------------------------------------------------------------------------
     def spielt(self) -> bool:
         """Spielt der Takt jetzt eigenen Ton? Ein volles Paket liegt bereit, oder die Antwort ist fertig und der Rest wird aufgefüllt."""
+        if self.verbunden:  # Ton vom Telefon: nur volle Pakete, nach einer Lücke erst wieder mit 60 ms Vorrat (gegen Ruckeln)
+            if len(self.ausgang) < 8 * self.ptime:
+                self.puffern = True
+                return False
+            if self.puffern and len(self.ausgang) < 8 * self.ptime + 480:
+                return False
+            self.puffern = False
+            return True
         return len(self.ausgang) >= 8 * self.ptime or (bool(self.ausgang) and self.antwort_fertig)
 
     def ton_rein(self, daten: bytes, adresse) -> None:
@@ -441,6 +465,10 @@ class Ruf:
         elif self.dauerton is None and jetzt - self.erstes_rtp >= DAUERTON_AB:  # einmal je Ruf entscheiden
             self.dauerton = self.bytes_rein >= 0.8 * 8000 * (jetzt - self.erstes_rtp)
             self.schritt("Station sendet Ton ohne Pause" if self.dauerton else "Station sendet Ton mit Pausen: keine Frist für fehlenden Ton")
+        if self.uebergeben:  # nicht mehr zu xAI; im Gespräch zum Telefon
+            if self.verbunden and self.weiter is not None:
+                self.weiter.ton(paket[1])
+            return
         self.eingang.extend(paket[1])
         if len(self.eingang) >= 640:  # 80 ms je Nachricht an xAI
             self.raus.put_nowait({"type": "input_audio_buffer.append", "audio": base64.b64encode(bytes(self.eingang)).decode()})
@@ -463,6 +491,8 @@ class Ruf:
             if jetzt - naechst > 0.2:
                 naechst = jetzt
             while naechst <= jetzt + 0.001 and self.lebt:
+                if self.uebergeben and not self.verbunden and len(self.ausgang) < groesse:
+                    self.ausgang.extend(self._freiton(groesse))
                 if self.spielt():
                     nutz = bytes(self.ausgang[:groesse]).ljust(groesse, stille[:1])
                     del self.ausgang[:groesse]
@@ -486,8 +516,11 @@ class Ruf:
             try:
                 await self.ws.send_json(nachricht)
             except Exception as err:  # noqa: BLE001  ohne Senden hört xAI nichts mehr: auflegen und melden
-                if self.lebt:
-                    await self.beenden("Senden an xAI fehlgeschlagen (%s)" % type(err).__name__)
+                grund = "Senden an xAI fehlgeschlagen (%s)" % type(err).__name__
+                if self.uebergeben:  # er wird gerade angerufen oder spricht: das Gespräch bleibt
+                    self.xai_weg = self.xai_weg or grund
+                elif self.lebt:
+                    await self.beenden(grund)
                 return
 
     async def _lesen(self) -> None:
@@ -523,7 +556,10 @@ class Ruf:
         if not grund:  # Code des Schließens (1000 regulär, 1006 ohne Abschluss, 1008 und 1011 Fehler bei xAI) für die Fehlersuche
             code = getattr(self.ws, "close_code", None)
             grund = "Verbindung zu xAI beendet" + (" (Code %s)" % code if code is not None else "")
-        if self.lebt:
+        if self.uebergeben:  # er wird gerade angerufen oder spricht: das Gespräch bleibt
+            self.xai_weg = self.xai_weg or grund
+            self.schritt(grund + " (während der Weiterleitung)")
+        elif self.lebt:
             await self.beenden(grund)
 
     async def _ereignis(self, e: dict) -> None:
@@ -531,7 +567,7 @@ class Ruf:
         if art.startswith("response."):
             self.zuletzt_xai = time.monotonic()
         if art in ("response.output_audio.delta", "response.audio.delta"):
-            if self.unterbrochen:  # Rest der abgebrochenen Antwort
+            if self.unterbrochen or self.uebergeben:  # Rest der abgebrochenen Antwort; nach dem Freiton spricht xAI nicht mehr
                 return
             if self.wartezeit is None and self.ende_rede is not None:
                 self.wartezeit = time.monotonic() - self.ende_rede
@@ -632,8 +668,12 @@ class Ruf:
             if name == "auflegen":
                 self.auflegen_wunsch = True
                 self.b.auflegen_um = time.monotonic()  # die Automation ruft den Dienst 6 s später; bis dahin kann schon ein neuer Ruf laufen
-            elif name == "bewohner_rufen":  # die Sprechanlage für ihn freimachen: nach dieser Antwort auflegen
-                self.auflegen_wunsch, self.auflegen_grund = True, "aufgelegt nach dem Bescheid an dich (Sprechanlage frei)"
+            elif name == "bewohner_rufen" and self.weiter is None:
+                if (z := self._weiter_zugang()) is not None:  # sein Telefon anrufen, das Modell kündigt es an
+                    self._weiterleiten(z)
+                    ausgabe = {"ergebnis": ERGEBNIS_WEITER.format(**formen(self.hass)) + WEITER}
+                else:  # die Sprechanlage für ihn freimachen: nach dieser Antwort auflegen
+                    self.auflegen_wunsch, self.auflegen_grund = True, "aufgelegt nach dem Bescheid an dich (Sprechanlage frei)"
         await self.raus.put({"type": "conversation.item.create", "item": {
             "type": "function_call_output", "call_id": e.get("call_id"), "output": json.dumps(ausgabe, ensure_ascii=False)}})
         self.antwort_fertig = False  # die Antwort nach dem Werkzeug kommt noch (sonst legte auflegen vor der Verabschiedung auf)
@@ -641,6 +681,80 @@ class Ruf:
             self.nach_werkzeug = True  # erst nach response.done anfordern, dann sind alle Ergebnisse dieser Antwort da
         else:
             await self._folgeantwort()
+
+    # --- Weiterleitung aufs Telefon -------------------------------------------------------------------------------------------------
+    def _weiter_zugang(self) -> Zugang | None:
+        """Der SIP-Zugang, wenn jetzt weitergeleitet wird: eingetragen, „Weiterleiten, wenn“ gilt (leer: immer), nicht gesperrt."""
+        e = einstellungen(self.hass)
+        z = zugang(e)
+        if z is None:
+            return None
+        if time.monotonic() - self.b.zuletzt_weiter < SPERRE_WEITER:
+            self.schritt("keine Weiterleitung: die letzte ist keine %d s her" % SPERRE_WEITER)
+            return None
+        wenn = str(e.get("weiterleiten_wenn") or "").strip()
+        if not wenn:
+            return z
+        try:
+            gilt = str(Template(wenn, self.hass).async_render(parse_result=False)).strip().lower() in ("true", "1", "on", "ja", "yes")
+        except TemplateError as err:
+            _LOGGER.warning("Grok Voice: „Weiterleiten, wenn“ lässt sich nicht rendern (%s); nicht weitergeleitet", type(err.__cause__ or err).__name__)
+            return None
+        if not gilt:
+            self.schritt("keine Weiterleitung: „Weiterleiten, wenn“ gilt nicht")
+        return z if gilt else None
+
+    def _weiterleiten(self, z: Zugang) -> None:
+        self.b.zuletzt_weiter = time.monotonic()
+        self.weiter = Anruf(self.hass, z, (self.codec,), vom_telefon=self._vom_telefon, schritt=lambda t: self.schritt("Weiterleitung: " + t))
+        self.schritt("Weiterleitung: wählt")
+        self.aufgaben.append(asyncio.create_task(self._sicher("Weiterleitung", self._weiterleitung)))
+
+    def _vom_telefon(self, nutzlast: bytes) -> None:
+        if self.verbunden:
+            self.ausgang.extend(nutzlast)
+            if len(self.ausgang) > 3200:  # höchstens 0,4 s Vorrat
+                del self.ausgang[:len(self.ausgang) - 1600]
+
+    def _freiton(self, n: int) -> bytes:
+        if not self.freiton_daten:
+            self.freiton_daten = freiton(self.codec)
+        stueck = (self.freiton_daten[self.freiton_pos:] + self.freiton_daten[:n])[:n]
+        self.freiton_pos = (self.freiton_pos + n) % len(self.freiton_daten)
+        return stueck
+
+    async def _weiterleitung(self) -> None:
+        """Wählt sofort; nach dem Satz des Empfangs Freiton; abgenommen: verbunden bis einer auflegt; sonst spricht der Empfang weiter."""
+        a = self.weiter
+        waehlen = asyncio.create_task(a.anrufen())
+        self.aufgaben.append(waehlen)
+        bis = time.monotonic() + SATZ_HOECHSTENS
+        while time.monotonic() < bis and not (self.antwort_fertig and not self.ausgang and time.monotonic() - self.zuletzt_ton > NACHKLANG):
+            await asyncio.sleep(0.1)
+        self.uebergeben = True
+        self.ausgang.clear()
+        self.schritt("Freiton für den Besucher")
+        ergebnis = self.weiter_ergebnis = await waehlen
+        if ergebnis == "angenommen":
+            self.ausgang.clear()
+            self.verbunden = True
+            self.protokoll.append("(zu dir durchgestellt)")
+            grund = await a.ende(HOECHSTENS)
+            if a.tasten:
+                self.protokoll.append("(Tasten von dir: %s)" % " ".join(a.tasten))
+            await self.beenden("Gespräch mit dir beendet (%s)" % grund)
+            return
+        await a.auflegen(ergebnis)
+        self.protokoll.append("(dich nicht erreicht: %s)" % ergebnis)
+        if self.xai_weg:
+            await self.beenden("dich nicht erreicht (%s); %s" % (ergebnis, self.xai_weg))
+            return
+        self.uebergeben = False
+        self.ausgang.clear()
+        self.zuletzt_besucher = time.monotonic()
+        await self.raus.put({"type": "conversation.item.create", "item": {
+            "type": "force_message", "role": "assistant", "interruptible": True,
+            "content": [{"type": "output_text", "text": NICHT_ERREICHT.format(**formen(self.hass))}]}})
 
     async def _folgeantwort(self) -> None:
         self.offen += 1
@@ -691,6 +805,8 @@ class Ruf:
                 a.cancel()
         if self.rtp is not None:
             self.rtp.close()
+        if self.weiter is not None:  # BYE ans Telefon, beim SIP-Server abmelden
+            self.hass.async_create_background_task(self.weiter.auflegen(self.grund or "Ruf beendet"), "tuer_assistent Weiterleitung auflegen")
         if self.b.ruf is self:
             self.b.ruf = None
         self._ende_melden()
@@ -726,7 +842,11 @@ class Ruf:
             self.b.merken({"beginn": self.uhr, "sekunden": sekunden, "angenommen": self.angenommen, "grund": self.grund,
                            "ton": "%s, %d ms" % (self.codec.name, self.ptime) if self.codec else "", "pakete_rein": self.pakete_rein,
                            "pakete_raus": self.pakete_raus, "luecke": round(self.luecke, 1), "dauerton": self.dauerton, "wartezeiten": self.wartezeiten,
-                           "werkzeuge": self.gerufen, "modell": self.b.modell_ist, "ablauf": self.ablauf, "mitschrift": self.protokoll})
+                           "werkzeuge": self.gerufen, "modell": self.b.modell_ist, "ablauf": self.ablauf, "mitschrift": self.protokoll,
+                           **({"weiterleitung": self.weiter_ergebnis or "abgebrochen", "tasten": "".join(self.weiter.tasten)} if self.weiter else {})})
+            if self.weiter is not None:
+                _stand(self.hass, weiterleitung="%s: %s%s" % (self.uhr[:16].replace("T", " "), self.weiter_ergebnis or "abgebrochen",
+                                                               ", Tasten " + "".join(self.weiter.tasten) if self.weiter.tasten else ""))
         except Exception:  # noqa: BLE001  das Tagebuch auch nicht
             _LOGGER.warning("Grok Voice: Ruf nicht ins Tagebuch geschrieben", exc_info=True)
 
@@ -761,6 +881,7 @@ class Bruecke(asyncio.DatagramProtocol):
         self.ruf: Ruf | None = None
         self.byes: dict[str, asyncio.Task] = {}
         self.auflegen_um = 0.0  # zuletzt das Werkzeug „auflegen“ (monotonic)
+        self.zuletzt_weiter = float("-inf")  # zuletzt eine Weiterleitung gewählt (monotonic)
         self.angemeldet = False
         self.anmeldung: asyncio.Task | None = None
         self._antworten: dict[tuple[str, int], asyncio.Future] = {}

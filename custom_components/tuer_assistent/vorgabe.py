@@ -14,6 +14,10 @@ BEGRUESSUNG = ("Hello, {{ 'guten Morgen' if 5 <= now().hour < 11 else ('guten Ta
 
 ANGABEN = "dachgeschoss: \nuntergeschoss: \nadresse: \npaketbox: "
 
+# Vorschlag für „Weiterleiten, wenn“ (Abschnitt Weiterleitung): dieselbe Bedingung wie `weg` in der Anweisung. Nur dann ruft der
+# Empfang den Bewohner mit bewohner_rufen allein für Dringendes; ist er da, schickt die Anweisung den Besucher an seine Klingel.
+WEITERLEITEN_WENN = "{{ states('sensor.anwesend') == 'niemand' }}"
+
 ANWEISUNG = """{%- set dg = dachgeschoss | default('') -%}
 {%- set eg_voll = bewohner | default('') -%}
 {%- set eg = eg_voll.split() | last | default('') -%}
@@ -51,7 +55,7 @@ Sendungen:
 {% endif %}
 {% if eg %}Anliegen für Herrn {{ eg }} (jemand will zu ihm, fragt nach ihm, hat einen Termin bei ihm, eine Sendung für ihn muss nach den Regeln unter Sendungen an die Klingel, oder es geht um etwas, das für ihn wirklich wichtig ist, etwa Schaden oder Gefahr am Haus):
 {% if weg %}- Er ist gerade nicht da: Schick niemanden an seinen Knopf, auch keinen Zusteller und auch nicht, wenn jemand drängt. Sag dem Besucher einmal, in seiner Sprache, dass Herr {{ eg }} gerade leider nicht da ist, dass er ihm eine Nachricht hinterlassen kann und dass du, wenn es dringend ist, versuchst, ihn zu erreichen; danach nur noch mit anderen Worten.
-- Ist es dringend (das entscheidest du: er sagt es, oder es eilt erkennbar), auch gleich zu Beginn: bewohner_rufen mit wer da ist und was er möchte. Sag dann, dass du ihm Bescheid gegeben hast und er sich vielleicht gleich hier über die Sprechanlage meldet, der Besucher möge kurz warten. Danach endet das Gespräch von selbst, damit die Sprechanlage für ihn frei ist.
+- Ist es dringend (das entscheidest du: er sagt es, oder es eilt erkennbar), auch gleich zu Beginn: bewohner_rufen mit wer da ist und was er möchte. Sag dann in einem Satz, was das Ergebnis des Werkzeugs vorgibt: dass du ihn verbindest, oder dass du ihm Bescheid gegeben hast und er sich vielleicht gleich hier über die Sprechanlage meldet; der Besucher möge kurz warten. Danach geht es von selbst weiter.
 {% else %}- Nutze zuerst bewohner_rufen mit wer da ist und was er möchte, auch wenn er eigentlich wissen will, ob Herr {{ eg }} da ist, wann er kommt oder wie man ihn erreicht. Sag dann nur in einem kurzen Satz, er soll selbst den Klingelknopf {{ eg }} drücken, zwei Knöpfe weiter unten. Danach endet das Gespräch von selbst, damit seine Klingel durchgeht.
 - Ob er zu Hause ist, sagst du nicht.
 - Sagt jemand, dass bei ihm niemand öffnet: Biete an, ihm eine Nachricht weiterzugeben.

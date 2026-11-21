@@ -9,6 +9,9 @@
   "services": {
     "auflegen": {
       "service": "mdi:phone-hangup"
+    },
+    "anruf_testen": {
+      "service": "mdi:phone-forward"
     }
   }
 }

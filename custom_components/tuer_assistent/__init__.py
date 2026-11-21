@@ -2,9 +2,10 @@
 selbst als Innenstation an der Station an, nimmt deren Rufe an und verbindet sie mit der Echtzeit-Schnittstelle von xAI.
 
 Aufbau (für jeden, der hier etwas ändert, Mensch oder KI; mehr in README.md):
-- __init__.py      Einstellungen lesen, die drei Werkzeuge, der Dienst `tuer_assistent.auflegen`, Start und Halt von Grok Voice.
+- __init__.py      Einstellungen lesen, die drei Werkzeuge, die Dienste `auflegen` und `anruf_testen`, Start und Halt von Grok Voice.
 - sprache.py       die Innenstation: Anmeldung (REGISTER), Rufe (INVITE, BYE), Ton (RTP), das Gespräch mit xAI, Wächter, Tagebuch.
 - sip.py           reine Hilfen ohne Zustand: SIP-Nachrichten zerlegen und beantworten, SDP, RTP, Digest, Adressen im Hausnetz.
+- weiterleitung.py die Weiterleitung aufs Telefon über einen eigenen SIP-Zugang (seit 2.8.0) und der Dienst `anruf_testen`.
 - config_flow.py   die Maske (Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren).
 - vorgabe.py       die mitgelieferte Begrüßung und Anweisung (Prompt) und die Beispiel-Angaben.
 - binary_sensor.py der Sensor „Empfang Störung“; diagnostics.py die Diagnose zum Herunterladen.
@@ -16,7 +17,9 @@ Wozu: Der Empfang spricht mit Fremden. Er darf im Haus nichts schalten und keine
 eine Nachricht weitergeben und auflegen können (Wort des Betreibers vom 10.11.2026: „Mach die Integration, dass mein Handy da klingelt“).
 
 Was ein Werkzeug tut: Es feuert das Ereignis `tuer_assistent_werkzeug` mit dem Namen des Werkzeugs und seinen Textfeldern. Mehr nicht.
-Was daraus folgt (Handy, Auflegen), steht in einer Automation der Anlage; dort lässt es sich ändern.
+Was daraus folgt (Handy, Auflegen), steht in einer Automation der Anlage; dort lässt es sich ändern. Einzige Ausnahme: Ist ein
+SIP-Zugang eingetragen (weiterleitung.py), ruft bewohner_rufen das Telefon des Bewohners an; seine Tasten feuern
+`tuer_assistent_taste`, und was eine Taste bewirkt, steht wieder in einer Automation.
 - bewohner_rufen(anliegen): ein Besucher möchte zum Bewohner (sein Name kommt aus den Einstellungen, Feld „Bewohner“).
 - nachricht_weitergeben(fuer, nachricht): ein Besucher hinterlässt eine Nachricht, oder ein Zusteller meldet ein abgegebenes Paket.
 - auflegen(): der Besucher hat sich verabschiedet.
@@ -52,7 +55,7 @@ import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
@@ -101,6 +104,11 @@ WERKZEUGE = (
      "jeder Sprache) und nichts an {akk} weiterzugeben ist, und nie zusammen mit einem anderen Werkzeug.",
      (), "Das Gespräch wird gleich beendet."),
 )
+# Mit eingetragenem SIP-Zugang (weiterleitung.py) ersetzt dieses Ergebnis das von bewohner_rufen; nimmt er nicht ab, sagt der Empfang
+# NICHT_ERREICHT wörtlich und das Gespräch geht weiter.
+ERGEBNIS_WEITER = ("{Nom} wird jetzt angerufen. Sag dem Besucher in einem kurzen Satz, dass du ihn verbindest und er bitte kurz "
+                   "warten soll.")
+NICHT_ERREICHT = "{Nom} ist leider gerade nicht erreichbar. Sie können ihm gern eine Nachricht hinterlassen."
 
 
 def einstellungen(hass: HomeAssistant) -> Mapping:
@@ -136,17 +144,21 @@ def nachname(hass: HomeAssistant) -> str:
     return roh[-1] if roh else ""
 
 
-def werkzeuge(hass: HomeAssistant) -> list[tuple[str, str, tuple[str, ...], str]]:
-    """Die drei Werkzeuge mit dem Bewohner aus den Einstellungen in der gewählten Anrede; ohne Namen „dem Bewohner“."""
+def formen(hass: HomeAssistant) -> dict[str, str]:
+    """Der Bewohner aus den Einstellungen in der gewählten Anrede je Fall (dat, akk, nom, Nom); ohne Namen „dem Bewohner“."""
     n = nachname(hass)
     anrede = einstellungen(hass).get("anrede") or VORGABEN["anrede"]
     if not n:
-        f = {"dat": "dem Bewohner", "akk": "den Bewohner", "nom": "der Bewohner", "Nom": "Der Bewohner"}
-    elif anrede == "Herr":
-        f = {"dat": f"Herrn {n}", "akk": f"Herrn {n}", "nom": f"Herr {n}", "Nom": f"Herr {n}"}
-    else:  # „Frau Muster“ und „Familie Muster“ bleiben in jedem Fall gleich; ohne Anrede der ganze Name
-        voll = f"{anrede} {n}" if anrede in ("Frau", "Familie") else sauber(einstellungen(hass).get("bewohner"), 60)
-        f = {"dat": voll, "akk": voll, "nom": voll, "Nom": voll}
+        return {"dat": "dem Bewohner", "akk": "den Bewohner", "nom": "der Bewohner", "Nom": "Der Bewohner"}
+    if anrede == "Herr":
+        return {"dat": f"Herrn {n}", "akk": f"Herrn {n}", "nom": f"Herr {n}", "Nom": f"Herr {n}"}
+    voll = f"{anrede} {n}" if anrede in ("Frau", "Familie") else sauber(einstellungen(hass).get("bewohner"), 60)  # ohne Anrede: der ganze Name
+    return {"dat": voll, "akk": voll, "nom": voll, "Nom": voll}
+
+
+def werkzeuge(hass: HomeAssistant) -> list[tuple[str, str, tuple[str, ...], str]]:
+    """Die drei Werkzeuge mit dem Bewohner aus den Einstellungen in der gewählten Anrede."""
+    f = formen(hass)
     return [(name, text.format(**f), felder, ergebnis.format(**f)) for name, text, felder, ergebnis in WERKZEUGE]
 
 
@@ -255,6 +267,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                                      translation_placeholders={"grund": ergebnis.removeprefix("nicht möglich: ")})
 
     hass.services.async_register(DOMAIN, "auflegen", dienst, schema=vol.Schema({}))
+
+    async def anruf_testen(call: ServiceCall) -> ServiceResponse:
+        """Probeanruf über den SIP-Zugang (weiterleitung.py): Ergebnis als Antwort und in tuer_assistent.stand."""
+        from .weiterleitung import probe, zugang
+
+        z = zugang(einstellungen(hass))
+        if z is None:
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key="kein_zugang")
+        ergebnis = await probe(hass, z)
+        _stand(hass, weiterleitung="%s: Probe %s%s" % (dt_util.now().strftime("%Y-%m-%d %H:%M"), ergebnis["ergebnis"],
+                                                       ", Tasten " + ergebnis["tasten"] if ergebnis["tasten"] else ""))
+        _LOGGER.info("Probeanruf: %s (%s)", ergebnis["ergebnis"], ergebnis["ende"] or "–")
+        return ergebnis
+
+    hass.services.async_register(DOMAIN, "anruf_testen", anruf_testen, schema=vol.Schema({}), supports_response=SupportsResponse.OPTIONAL)
 
     async def anhalten(_event) -> None:
         await _stoppen(hass, "Home Assistant hält an")
