@@ -303,6 +303,16 @@ Regeln für Änderungen:
 
 ## Stand
 
+Version 2.9.2 (22.11.2026):
+
+- Mitgelieferte Anweisung: Die Fälle sind Beispiele und Richtung; was nicht genau passt, entscheidet das Modell im Sinn des Ziels.
+  Fest bleiben, wann ein Werkzeug gerufen wird, wohin Besucher geschickt werden, was über die Anwesenheit gesagt wird, und die
+  Grenzen. Ist der Bewohner nicht da, ist `bewohner_rufen` nur noch das Verbinden (verbinden „ja“, nach angenommenem Angebot oder
+  wenn es dringend ist); Bescheid ohne Anruf geht über `nachricht_weitergeben` (ein „nein“ legte vorher auf, bevor der Anruf
+  angeboten war).
+- Maske: Neben dem Stand der Weiterleitung steht ihr letztes Ergebnis (Probe oder Anruf); Hinweis, nach jeder Änderung die Probe zu
+  machen; der Text zur Weiterleitung beschreibt, wann verbunden wird.
+
 Version 2.9.1 (22.11.2026):
 
 - Mitgelieferte Anweisung: Ist der Bewohner nicht da, klärt der Empfang erst, worum es geht, und löst es, wenn er kann; bleibt es offen

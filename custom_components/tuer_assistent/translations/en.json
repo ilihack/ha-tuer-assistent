@@ -13,7 +13,7 @@
         "sections": {
           "texte": {
             "name": "Greeting and instructions",
-            "description": "The instructions are the whole context in one text: whom the reception works for, who else lives in the house, where the parcel box is, and how it behaves. Both are templates, rendered anew for every call. Prefilled with the bundled default using invented names; saved unchanged or empty, the default keeps applying, including that of a later version.",
+            "description": "The instructions are the whole context in one text: whom the reception works for, who else lives in the house, where the parcel box is, and how it behaves. Both are templates, rendered anew for every call. Prefilled with the bundled default using invented names; saved unchanged or empty, the default keeps applying, including that of a later version. The cases in the default are examples and direction; fixed are when a tool is called, where visitors are sent, what is said about presence, and the limits.",
             "data": {
               "begruessung": "Greeting",
               "anweisung": "Instructions"
@@ -57,7 +57,7 @@
           },
           "weiterleitung": {
             "name": "Forward to a phone",
-            "description": "If a visitor has to speak to the resident in person, the model decides from the instructions to connect (bewohner_rufen with verbinden “ja”); the reception then calls the number through this SIP account. The visitor hears the ringing tone; when the resident answers, both talk to each other, and every key press fires the event tuer_assistent_taste (what a key does, e.g. 1 = open the door, belongs in an automation of your own). If nobody answers, the reception carries on. Active only with all four fields; test: action tuer_assistent.anruf_testen.",
+            "description": "When to connect is decided by the model from the instructions (bewohner_rufen with verbinden “ja”; in the default: the resident is away, and the visitor accepts the offered call or it is urgent). The reception then calls the number through this SIP account. The visitor hears the ringing tone; when the resident answers, both talk to each other, and every key press fires the event tuer_assistent_taste (what a key does, e.g. 1 = open the door, belongs in an automation of your own). If nobody answers, the reception carries on. Active only with all four fields. Test after every change: Developer tools → Actions → “Test forwarding”.",
             "data": {
               "sip_server": "SIP server",
               "sip_nutzer": "SIP user",
@@ -68,7 +68,7 @@
               "sip_server": "Host name of the provider's SIP server, with :port if needed (default 5060, UDP).",
               "sip_nutzer": "User name of the SIP account.",
               "sip_passwort": "Password of the SIP account. Never shown: leave empty to keep it.",
-              "ziel": "Phone number, e.g. the mobile; +49 … or 0 … ."
+              "ziel": "Phone number, e.g. the mobile; +49 … or 0 … . After saving, run “Test forwarding” once: does the right phone ring?"
             }
           }
         }
@@ -100,7 +100,7 @@
         "sections": {
           "texte": {
             "name": "Greeting and instructions",
-            "description": "The instructions are the whole context in one text: whom the reception works for, who else lives in the house, where the parcel box is, and how it behaves. Both are templates, rendered anew for every call. Prefilled with the bundled default using invented names; saved unchanged or empty, the default keeps applying, including that of a later version.",
+            "description": "The instructions are the whole context in one text: whom the reception works for, who else lives in the house, where the parcel box is, and how it behaves. Both are templates, rendered anew for every call. Prefilled with the bundled default using invented names; saved unchanged or empty, the default keeps applying, including that of a later version. The cases in the default are examples and direction; fixed are when a tool is called, where visitors are sent, what is said about presence, and the limits.",
             "data": {
               "begruessung": "Greeting",
               "anweisung": "Instructions"
@@ -144,7 +144,7 @@
           },
           "weiterleitung": {
             "name": "Forward to a phone",
-            "description": "If a visitor has to speak to the resident in person, the model decides from the instructions to connect (bewohner_rufen with verbinden “ja”); the reception then calls the number through this SIP account. The visitor hears the ringing tone; when the resident answers, both talk to each other, and every key press fires the event tuer_assistent_taste (what a key does, e.g. 1 = open the door, belongs in an automation of your own). If nobody answers, the reception carries on. Active only with all four fields; test: action tuer_assistent.anruf_testen.",
+            "description": "When to connect is decided by the model from the instructions (bewohner_rufen with verbinden “ja”; in the default: the resident is away, and the visitor accepts the offered call or it is urgent). The reception then calls the number through this SIP account. The visitor hears the ringing tone; when the resident answers, both talk to each other, and every key press fires the event tuer_assistent_taste (what a key does, e.g. 1 = open the door, belongs in an automation of your own). If nobody answers, the reception carries on. Active only with all four fields. Test after every change: Developer tools → Actions → “Test forwarding”.",
             "data": {
               "sip_server": "SIP server",
               "sip_nutzer": "SIP user",
@@ -155,7 +155,7 @@
               "sip_server": "Host name of the provider's SIP server, with :port if needed (default 5060, UDP).",
               "sip_nutzer": "User name of the SIP account.",
               "sip_passwort": "Password of the SIP account. Never shown: leave empty to keep it.",
-              "ziel": "Phone number, e.g. the mobile; +49 … or 0 … ."
+              "ziel": "Phone number, e.g. the mobile; +49 … or 0 … . After saving, run “Test forwarding” once: does the right phone ring?"
             }
           }
         }

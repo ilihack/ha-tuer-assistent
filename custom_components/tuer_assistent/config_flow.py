@@ -141,7 +141,8 @@ async def _schritt(flow, schritt: str, eingabe: dict | None, alt: Mapping, ferti
     stand = flow.hass.states.get(STAND)
     platz = {"feld": "", "grund": "", **platz,
              "stand": ", ".join(str(stand.attributes.get(k)) for k in ("grok_voice", "xai", "modell") if stand and stand.attributes.get(k)) or "–",
-             "weiterleitung": weiterleitung_stand(alt)}
+             "weiterleitung": weiterleitung_stand(alt) + (f"; zuletzt {stand.attributes['weiterleitung']}"  # Probe oder echter Anruf
+                                                         if stand and stand.attributes.get("weiterleitung") else "")}
     return flow.async_show_form(step_id=schritt, data_schema=maske(vorschlag, all(alt.get(k) for k in PFLICHT),
                                                                    weiterleitung_stand(alt) != "eingerichtet"),
                                 errors={"base": fehler} if fehler else {}, description_placeholders=platz)

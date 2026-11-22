@@ -13,7 +13,7 @@
         "sections": {
           "texte": {
             "name": "Begrüßung und Anweisung",
-            "description": "Die Anweisung ist der ganze Kontext in einem Text: für wen der Empfang arbeitet, wer sonst im Haus wohnt, wo die Paketbox ist, und wie er sich verhält. Beides sind Vorlagen, bei jedem Ruf neu gerendert. Vorbelegt ist die mitgelieferte Vorgabe mit erfundenen Namen; unverändert oder leer gespeichert gilt sie weiter, auch die einer späteren Version.",
+            "description": "Die Anweisung ist der ganze Kontext in einem Text: für wen der Empfang arbeitet, wer sonst im Haus wohnt, wo die Paketbox ist, und wie er sich verhält. Beides sind Vorlagen, bei jedem Ruf neu gerendert. Vorbelegt ist die mitgelieferte Vorgabe mit erfundenen Namen; unverändert oder leer gespeichert gilt sie weiter, auch die einer späteren Version. Die Fälle der Vorgabe sind Beispiele und Richtung; fest sind, wann ein Werkzeug gerufen wird, wohin Besucher geschickt werden, was über die Anwesenheit gesagt wird, und die Grenzen.",
             "data": {
               "begruessung": "Begrüßung",
               "anweisung": "Anweisung"
@@ -57,7 +57,7 @@
           },
           "weiterleitung": {
             "name": "Weiterleitung aufs Telefon",
-            "description": "Muss ein Besucher den Bewohner selbst sprechen, entscheidet das Modell nach der Anweisung, ihn zu verbinden (bewohner_rufen mit verbinden „ja“); dann ruft der Empfang über diesen SIP-Zugang die Nummer an. Der Besucher hört den Freiton; nimmt der Bewohner ab, sprechen beide miteinander, und jede Taste feuert das Ereignis tuer_assistent_taste (was die Taste bewirkt, etwa 1 = Tür auf, steht in einer eigenen Automation). Nimmt niemand ab, spricht der Empfang weiter. Erst mit allen vier Feldern aktiv; Probe: Aktion tuer_assistent.anruf_testen.",
+            "description": "Wann verbunden wird, entscheidet das Modell nach der Anweisung (bewohner_rufen mit verbinden „ja“; in der Vorgabe: der Bewohner ist nicht da, und der Besucher nimmt den angebotenen Anruf an oder es ist dringend). Dann ruft der Empfang über diesen SIP-Zugang die Nummer an. Der Besucher hört den Freiton; nimmt der Bewohner ab, sprechen beide miteinander, und jede Taste feuert das Ereignis tuer_assistent_taste (was die Taste bewirkt, etwa 1 = Tür auf, steht in einer eigenen Automation). Nimmt niemand ab, spricht der Empfang weiter. Erst mit allen vier Feldern aktiv. Probe nach jeder Änderung: Entwicklerwerkzeuge → Aktionen → „Weiterleitung testen“.",
             "data": {
               "sip_server": "SIP-Server",
               "sip_nutzer": "SIP-Benutzer",
@@ -68,7 +68,7 @@
               "sip_server": "Name des SIP-Servers des Anbieters, bei Bedarf mit :Port (sonst 5060, UDP).",
               "sip_nutzer": "Benutzername des SIP-Zugangs.",
               "sip_passwort": "Passwort des SIP-Zugangs. Wird nie angezeigt: leer lassen, dann bleibt es.",
-              "ziel": "Telefonnummer, etwa die des Handys; +49 … oder 0 … ."
+              "ziel": "Telefonnummer, etwa die des Handys; +49 … oder 0 … . Nach dem Speichern einmal „Weiterleitung testen“: Klingelt das richtige Telefon?"
             }
           }
         }
@@ -100,7 +100,7 @@
         "sections": {
           "texte": {
             "name": "Begrüßung und Anweisung",
-            "description": "Die Anweisung ist der ganze Kontext in einem Text: für wen der Empfang arbeitet, wer sonst im Haus wohnt, wo die Paketbox ist, und wie er sich verhält. Beides sind Vorlagen, bei jedem Ruf neu gerendert. Vorbelegt ist die mitgelieferte Vorgabe mit erfundenen Namen; unverändert oder leer gespeichert gilt sie weiter, auch die einer späteren Version.",
+            "description": "Die Anweisung ist der ganze Kontext in einem Text: für wen der Empfang arbeitet, wer sonst im Haus wohnt, wo die Paketbox ist, und wie er sich verhält. Beides sind Vorlagen, bei jedem Ruf neu gerendert. Vorbelegt ist die mitgelieferte Vorgabe mit erfundenen Namen; unverändert oder leer gespeichert gilt sie weiter, auch die einer späteren Version. Die Fälle der Vorgabe sind Beispiele und Richtung; fest sind, wann ein Werkzeug gerufen wird, wohin Besucher geschickt werden, was über die Anwesenheit gesagt wird, und die Grenzen.",
             "data": {
               "begruessung": "Begrüßung",
               "anweisung": "Anweisung"
@@ -144,7 +144,7 @@
           },
           "weiterleitung": {
             "name": "Weiterleitung aufs Telefon",
-            "description": "Muss ein Besucher den Bewohner selbst sprechen, entscheidet das Modell nach der Anweisung, ihn zu verbinden (bewohner_rufen mit verbinden „ja“); dann ruft der Empfang über diesen SIP-Zugang die Nummer an. Der Besucher hört den Freiton; nimmt der Bewohner ab, sprechen beide miteinander, und jede Taste feuert das Ereignis tuer_assistent_taste (was die Taste bewirkt, etwa 1 = Tür auf, steht in einer eigenen Automation). Nimmt niemand ab, spricht der Empfang weiter. Erst mit allen vier Feldern aktiv; Probe: Aktion tuer_assistent.anruf_testen.",
+            "description": "Wann verbunden wird, entscheidet das Modell nach der Anweisung (bewohner_rufen mit verbinden „ja“; in der Vorgabe: der Bewohner ist nicht da, und der Besucher nimmt den angebotenen Anruf an oder es ist dringend). Dann ruft der Empfang über diesen SIP-Zugang die Nummer an. Der Besucher hört den Freiton; nimmt der Bewohner ab, sprechen beide miteinander, und jede Taste feuert das Ereignis tuer_assistent_taste (was die Taste bewirkt, etwa 1 = Tür auf, steht in einer eigenen Automation). Nimmt niemand ab, spricht der Empfang weiter. Erst mit allen vier Feldern aktiv. Probe nach jeder Änderung: Entwicklerwerkzeuge → Aktionen → „Weiterleitung testen“.",
             "data": {
               "sip_server": "SIP-Server",
               "sip_nutzer": "SIP-Benutzer",
@@ -155,7 +155,7 @@
               "sip_server": "Name des SIP-Servers des Anbieters, bei Bedarf mit :Port (sonst 5060, UDP).",
               "sip_nutzer": "Benutzername des SIP-Zugangs.",
               "sip_passwort": "Passwort des SIP-Zugangs. Wird nie angezeigt: leer lassen, dann bleibt es.",
-              "ziel": "Telefonnummer, etwa die des Handys; +49 … oder 0 … ."
+              "ziel": "Telefonnummer, etwa die des Handys; +49 … oder 0 … . Nach dem Speichern einmal „Weiterleitung testen“: Klingelt das richtige Telefon?"
             }
           }
         }
