@@ -149,7 +149,9 @@ Der Sensor hängt an einem Gerät „Empfang“; Namen und Symbole kommen aus `t
 4. Die Automationen aus `beispiele/` einspielen:
    - `klingel_unten.json`: am Ende eines Rufs eine Meldung mit der Mitschrift, wenn das Gespräch den Bewohner betrifft oder der
      Empfang gestört war (beides steht im Ereignis)
-   - `tuer_assistent_werkzeuge.json`: Handy, Nachricht, Auflegen
+   - `tuer_assistent_werkzeuge.json`: Handy, Nachricht, Auflegen; Ruf und Nachricht bekommen danach das Bild einer Kamera vom
+     Moment (`camera.snapshot` in `/media/kamera/`, verkleinert mit dem Befehl `shell_command.kamera_bild_verkleinern`, nach einem
+     Tag gelöscht mit `shell_command.kamera_bilder_aufraeumen`; ohne Kamera oder ohne Bild bleibt es beim Text)
    - `tuer_assistent_mitschrift.json`: Beginn und Ende von Störungen aufs Handy, auf Wunsch jeder Wortwechsel
    - `tuer_taste_oeffnet.json` (nur mit SIP-Zugang): Taste 1 im weitergeleiteten Anruf öffnet die Haustür (Dienst der Integration
      „Dahua VTO“; für eine andere Station die Aktion ersetzen)
@@ -313,6 +315,8 @@ Version 2.9.4 (22.11.2026):
 - Ist der Bewohner nicht da, fragt der Empfang bei einem offenen Anliegen, ob er ihn anrufen oder ihm eine Nachricht schicken soll;
   der Besucher entscheidet, nur bei Dringendem ruft er ohne Frage an. Hinweise von Passanten (Licht am Auto, Tor offen) laufen
   genauso; ist der Bewohner da, heißt die Wahl Nachricht oder selbst sprechen (dann an seine Klingel).
+- Beispiel `tuer_assistent_werkzeuge.json`: Ruf und Nachricht mit dem Bild vom Moment (aus einer Kamera am Eingang; die Station
+  liefert kein Standbild), in dieselbe Meldung, ohne zweiten Ton.
 
 Version 2.9.3 (22.11.2026):
 
