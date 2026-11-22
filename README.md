@@ -178,7 +178,7 @@ Erdgeschoss als Bewohner, Familie Beispiel oben, Familie Probe unten, Musterweg 
 ### Weiterleitung aufs Telefon
 
 Ruft die KI `bewohner_rufen` mit verbinden „ja“ (wann, entscheidet das Modell nach der Anweisung: in der Vorgabe, wenn der Bewohner nicht
-da ist und der Besucher ihn selbst sprechen muss, weil es dringend ist, er mit ihm reden möchte oder seine Unterschrift braucht) und
+da ist und es dringend ist oder der Besucher den angebotenen Anruf annimmt) und
 sind alle vier Felder des SIP-Zugangs gefüllt, wählt die Integration die Nummer über den Zugang, statt aufzulegen. Das Modell sagt dem Besucher, dass es verbindet; danach hört er
 den Freiton. Nimmt der Bewohner ab, geht der Ton direkt zwischen Station und Telefon (G.711 im Codec der Station, ohne xAI); legt einer
 auf, endet der Ruf. Jede Taste feuert `tuer_assistent_taste`; was sie bewirkt, steht in einer eigenen Automation (Beispiel: Taste 1
@@ -302,6 +302,12 @@ Regeln für Änderungen:
   Prüfstand brauchen; eine Änderung gilt erst, wenn sie dort grün sind.
 
 ## Stand
+
+Version 2.9.1 (22.11.2026):
+
+- Mitgelieferte Anweisung: Ist der Bewohner nicht da, klärt der Empfang erst, worum es geht, und löst es, wenn er kann; bleibt es offen
+  oder will der Besucher ihn sprechen, bietet er einen Anruf an, auch wenn es nicht dringend ist (dringend: gleich verbinden, auch im
+  Notfall). Für die anderen Bewohner ruft er niemanden an, Zusteller verbindet er nicht.
 
 Version 2.9.0 (22.11.2026):
 

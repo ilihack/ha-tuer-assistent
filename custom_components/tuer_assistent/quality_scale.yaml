@@ -1,4 +1,4 @@
-# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 22.11.2026, Version 2.9.0).
+# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 22.11.2026, Version 2.9.1).
 # Eigene Integrationen bekommen keine Stufe; die Regeln dienen hier als Prüfliste (Wort des Betreibers vom 12.11.2026: „Schau auch, was Home
 # Assistant für Gold-Integration verlangt und was davon sinnvoll für uns ist“; dann: „wenn es nicht komplex ist, können wir die
 # anderen Qualitätsmerkmale integrieren“). Alle Einstellungen (Begrüßung, Anweisung, Stichwörter, Schlüssel, Türstation, Weiterleitung) stehen in den
