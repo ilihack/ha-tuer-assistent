@@ -281,7 +281,7 @@ Diese Dateien sind genau die, die in der Anlage des Autors laufen; sie werden na
 | `sprache.py` | die Innenstation (`Bruecke`: Anmeldung, Rufe, Prüfung des Schlüssels, Tagebuch) und das Gespräch (`Ruf`: Ton, Ereignisse von xAI, Wächter) |
 | `sip.py` | reine Hilfen ohne Zustand und ohne Home Assistant: SIP zerlegen und beantworten, SDP, RTP, Digest, Adressen |
 | `weiterleitung.py` | die Weiterleitung aufs Telefon (`Anruf`: Anmeldung beim Anbieter, Wählen, Ton, Tasten, Auflegen), G.711-Töne, der Probeanruf |
-| `config_flow.py` | die Maske (Einrichten und „Konfigurieren“), Prüfungen vor dem Speichern |
+| `config_flow.py` | die Maske (Einrichten und Zahnrad am Eintrag), Prüfungen vor dem Speichern |
 | `vorgabe.py` | mitgelieferte Begrüßung und Anweisung (ein Text mit erfundenen Namen) |
 | `binary_sensor.py`, `diagnostics.py` | Sensor „Empfang Störung“, Diagnose |
 | `translations/`, `icons.json`, `services.yaml`, `quality_scale.yaml`, `brand/` | Texte, Symbole, Dienst, Prüfliste der Qualitätsskala, Symbol |

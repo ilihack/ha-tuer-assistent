@@ -6,7 +6,7 @@ Aufbau (für jeden, der hier etwas ändert, Mensch oder KI; mehr in README.md):
 - sprache.py       die Innenstation: Anmeldung (REGISTER), Rufe (INVITE, BYE), Ton (RTP), das Gespräch mit xAI, Wächter, Tagebuch.
 - sip.py           reine Hilfen ohne Zustand: SIP-Nachrichten zerlegen und beantworten, SDP, RTP, Digest, Adressen im Hausnetz.
 - weiterleitung.py die Weiterleitung aufs Telefon über einen eigenen SIP-Zugang (seit 2.8.0) und der Dienst `anruf_testen`.
-- config_flow.py   die Maske (Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren).
+- config_flow.py   die Maske (Einstellungen → Geräte & Dienste → Tür-Assistent → Zahnrad).
 - vorgabe.py       die mitgelieferte Begrüßung und Anweisung (Prompt, der ganze Kontext in einem Text, mit erfundenen Namen).
 - binary_sensor.py der Sensor „Empfang Störung“; diagnostics.py die Diagnose zum Herunterladen.
 - translations/, icons.json, services.yaml, quality_scale.yaml, brand/: Texte, Symbole, Dienst, Prüfliste, Symbol der Integration.

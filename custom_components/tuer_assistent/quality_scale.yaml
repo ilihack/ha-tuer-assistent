@@ -1,7 +1,7 @@
-# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 15.11.2026, Version 2.7.0).
+# Qualitätsskala von Home Assistant, angewandt auf den Tür-Assistenten (Stand 22.11.2026, Version 2.9.0).
 # Eigene Integrationen bekommen keine Stufe; die Regeln dienen hier als Prüfliste (Wort des Betreibers vom 12.11.2026: „Schau auch, was Home
 # Assistant für Gold-Integration verlangt und was davon sinnvoll für uns ist“; dann: „wenn es nicht komplex ist, können wir die
-# anderen Qualitätsmerkmale integrieren“). Alle Einstellungen (Namen, Begrüßung, Anweisung, Schlüssel, Türstation) stehen in den
+# anderen Qualitätsmerkmale integrieren“). Alle Einstellungen (Begrüßung, Anweisung, Stichwörter, Schlüssel, Türstation, Weiterleitung) stehen in den
 # Optionen des Eintrags (.storage/core.config_entries); den alten Text-Weg (Erkennung, Agent, Stimme, Wahl der KI) gibt es seit 2.7.0
 # nicht mehr.
 # status: done = erfüllt, exempt = gilt hier nicht oder ist bewusst nicht gewollt (mit Grund), todo = sinnvoll und offen.
@@ -23,7 +23,7 @@ rules:
     comment: Kein Koordinator und keine Basis-Entität; eine Entität.
   config-flow:
     status: done
-    comment: „Integration hinzufügen“ führt gleich in die Maske, „Konfigurieren“ am Eintrag ändert alles ohne Neustart von Home Assistant; oben die Namen, darunter Begrüßung und Anweisung, xAI, Türstation (Schlüssel und Passwort als Passwortfelder, nie vorbelegt).
+    comment: „Integration hinzufügen“ führt gleich in die Maske, das Zahnrad am Eintrag ändert alles ohne Neustart von Home Assistant; oben Begrüßung und Anweisung (seit 2.9.0 ein Text mit allem, was der Empfang wissen soll), darunter xAI, Türstation und Weiterleitung aufs Telefon (Schlüssel und Passwörter als Passwortfelder, nie vorbelegt).
   config-flow-test-coverage:
     status: done
     comment: pruefung/tests/test_oberflaeche.py deckt config_flow.py vollständig ab (pytest-cov, 14.11.2026).
@@ -88,7 +88,7 @@ rules:
     status: done
   reauthentication-flow:
     status: exempt
-    comment: Ein abgelehnter Schlüssel erscheint unter Reparaturen mit dem Weg zu „Konfigurieren“; dort ein neuer Schlüssel, Grok Voice startet ohne Neustart neu. Ein eigener Ablauf wäre derselbe Weg doppelt.
+    comment: Ein abgelehnter Schlüssel erscheint unter Reparaturen mit dem Weg zum Zahnrad am Eintrag; dort ein neuer Schlüssel, Grok Voice startet ohne Neustart neu. Ein eigener Ablauf wäre derselbe Weg doppelt.
   test-coverage:
     status: done
     comment: Verlangt sind über 95 % in jedem Modul. Gemessen am 15.11.2026 mit pytest-cov über die Prüfungen des Tür-Assistenten (Prüfstand der Anlage, gestellte Station, gestelltes xAI) 97 % insgesamt; sprache.py 95,4 %, sip.py 96,9 %, die übrigen 100 %.
@@ -98,7 +98,7 @@ rules:
     comment: Ein Gerät „Empfang“ (Dienst) für den Sensor.
   diagnostics:
     status: done
-    comment: diagnostics.py, ohne Schlüssel, Passwort, Adresse, Namen und Mitschriften; mit dem Tagebuch der letzten Rufe.
+    comment: diagnostics.py, ohne Schlüssel, Passwörter, Adresse, Anweisung und Mitschriften; mit dem Tagebuch der letzten Rufe.
   discovery:
     status: exempt
     comment: Eine Station, fest eingetragen; ihr Passwort lässt sich nicht finden.
@@ -143,7 +143,7 @@ rules:
     comment: Symbole der Entitäten und des Dienstes in icons.json.
   reconfiguration-flow:
     status: exempt
-    comment: Alle Einstellungen liegen in den Optionen („Konfigurieren“) und gelten ohne Neustart; ein zweiter Weg zu denselben Feldern wäre doppelt.
+    comment: Alle Einstellungen liegen in den Optionen (Zahnrad am Eintrag) und gelten ohne Neustart; ein zweiter Weg zu denselben Feldern wäre doppelt.
   repair-issues:
     status: done
     comment: xAI-Schlüssel abgelehnt oder gesperrt; Anmeldung an der Station verloren (beide verschwinden von selbst); dass Mitschriften gespeichert werden (Warnung, lässt sich ignorieren).

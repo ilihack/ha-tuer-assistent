@@ -83,7 +83,7 @@
       "ziel": "The number to call is not a phone number (allowed: digits, starting with + or 0)."
     },
     "abort": {
-      "single_instance_allowed": "There is only one door assistant; its settings are under \"Configure\" on its entry."
+      "single_instance_allowed": "There is only one door assistant; its settings are under the gear icon (\"Configure\") on its entry."
     }
   },
   "options": {
@@ -173,15 +173,15 @@
   "issues": {
     "xai_schluessel": {
       "title": "Reception: xAI key {grund}",
-      "description": "The top button of the door station does not work: xAI does not accept the key ({grund}).\n\nCheck in the xAI account that the key is still valid and credit is left. Enter a new key under Settings → Devices & services → Tür-Assistent → Configure; Grok Voice then restarts. This notice disappears by itself once the check (at start, then hourly) succeeds again."
+      "description": "The top button of the door station does not work: xAI does not accept the key ({grund}).\n\nCheck in the xAI account that the key is still valid and credit is left. Enter a new key under Settings → Devices & services → Tür-Assistent → gear icon; Grok Voice then restarts. This notice disappears by itself once the check (at start, then hourly) succeeds again."
     },
     "station_anmeldung": {
       "title": "Reception: not registered at the door station",
-      "description": "The top button of the door station does not work: registering as an indoor station fails ({grund}).\n\nCheck that the door station is running and reachable and that extension and password under Settings → Devices & services → Tür-Assistent → Configure match the ones at the station. The integration retries every minute; this notice disappears by itself once it works again."
+      "description": "The top button of the door station does not work: registering as an indoor station fails ({grund}).\n\nCheck that the door station is running and reachable and that extension and password under Settings → Devices & services → Tür-Assistent → gear icon match the ones at the station. The integration retries every minute; this notice disappears by itself once it works again."
     },
     "mitschriften": {
       "title": "Reception: transcripts are stored",
-      "description": "The door assistant keeps the last {anzahl} calls in `.storage/tuer_assistent.rufe`, including the transcript of what visitor and reception said. The file is not encrypted and is part of every Home Assistant backup. The transcripts are also contained in the integration's events, which the recorder keeps (10 days by default).\n\nNothing changes if you do nothing. To keep transcripts out of the journal, turn off \"Store transcripts\" under Settings → Devices & services → Tür-Assistent → Configure. To keep them out of the recorder, exclude the event types `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` and `tuer_assistent_werkzeug` under `recorder:` → `exclude:` → `event_types:`. You can ignore this notice; it will not come back."
+      "description": "The door assistant keeps the last {anzahl} calls in `.storage/tuer_assistent.rufe`, including the transcript of what visitor and reception said. The file is not encrypted and is part of every Home Assistant backup. The transcripts are also contained in the integration's events, which the recorder keeps (10 days by default).\n\nNothing changes if you do nothing. To keep transcripts out of the journal, turn off \"Store transcripts\" under Settings → Devices & services → Tür-Assistent → gear icon. To keep them out of the recorder, exclude the event types `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` and `tuer_assistent_werkzeug` under `recorder:` → `exclude:` → `event_types:`. You can ignore this notice; it will not come back."
     }
   },
   "entity": {

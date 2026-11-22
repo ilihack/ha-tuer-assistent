@@ -83,7 +83,7 @@
       "ziel": "Die Nummer, die angerufen wird, ist keine Telefonnummer (erlaubt: Ziffern, am Anfang + oder 0)."
     },
     "abort": {
-      "single_instance_allowed": "Den Tür-Assistenten gibt es nur einmal; seine Einstellungen stehen am Eintrag unter „Konfigurieren“."
+      "single_instance_allowed": "Den Tür-Assistenten gibt es nur einmal; seine Einstellungen stehen am Eintrag unter dem Zahnrad („Konfigurieren“)."
     }
   },
   "options": {
@@ -173,15 +173,15 @@
   "issues": {
     "xai_schluessel": {
       "title": "Empfang: xAI-Schlüssel {grund}",
-      "description": "Der oberste Knopf der Sprechanlage geht nicht: xAI nimmt den Schlüssel nicht an ({grund}).\n\nIm xAI-Konto prüfen, ob der Schlüssel noch gilt und das Guthaben reicht. Einen neuen Schlüssel unter Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren eintragen; Grok Voice startet dann neu. Der Hinweis verschwindet von selbst, sobald die Prüfung (beim Start, dann stündlich) wieder gelingt."
+      "description": "Der oberste Knopf der Sprechanlage geht nicht: xAI nimmt den Schlüssel nicht an ({grund}).\n\nIm xAI-Konto prüfen, ob der Schlüssel noch gilt und das Guthaben reicht. Einen neuen Schlüssel unter Einstellungen → Geräte & Dienste → Tür-Assistent → Zahnrad eintragen; Grok Voice startet dann neu. Der Hinweis verschwindet von selbst, sobald die Prüfung (beim Start, dann stündlich) wieder gelingt."
     },
     "station_anmeldung": {
       "title": "Empfang: an der Türstation nicht angemeldet",
-      "description": "Der oberste Knopf der Sprechanlage geht nicht: Die Anmeldung als Innenstation scheitert ({grund}).\n\nPrüfen, ob die Türstation läuft und erreichbar ist und ob Nebenstelle und Passwort unter Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren zu denen an der Station passen. Die Integration versucht es jede Minute neu; der Hinweis verschwindet von selbst, sobald es wieder geht."
+      "description": "Der oberste Knopf der Sprechanlage geht nicht: Die Anmeldung als Innenstation scheitert ({grund}).\n\nPrüfen, ob die Türstation läuft und erreichbar ist und ob Nebenstelle und Passwort unter Einstellungen → Geräte & Dienste → Tür-Assistent → Zahnrad zu denen an der Station passen. Die Integration versucht es jede Minute neu; der Hinweis verschwindet von selbst, sobald es wieder geht."
     },
     "mitschriften": {
       "title": "Empfang: Mitschriften werden gespeichert",
-      "description": "Der Tür-Assistent hält die letzten {anzahl} Rufe in `.storage/tuer_assistent.rufe` fest, mit Mitschrift: was Besucher und Empfang gesagt haben. Die Datei ist unverschlüsselt und steckt in jeder Sicherung von Home Assistant. Die Mitschriften stehen außerdem in den Ereignissen der Integration, die die Ereignis-Datenbank (Recorder) aufhebt, standardmäßig 10 Tage.\n\nSo bleibt es, wenn du nichts tust. Ohne Mitschrift im Tagebuch: unter Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren „Mitschrift speichern“ ausschalten. Aus der Ereignis-Datenbank hält sie `recorder:` → `exclude:` → `event_types:` mit `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` und `tuer_assistent_werkzeug` heraus. Diesen Hinweis kannst du ignorieren; er kommt dann nicht wieder."
+      "description": "Der Tür-Assistent hält die letzten {anzahl} Rufe in `.storage/tuer_assistent.rufe` fest, mit Mitschrift: was Besucher und Empfang gesagt haben. Die Datei ist unverschlüsselt und steckt in jeder Sicherung von Home Assistant. Die Mitschriften stehen außerdem in den Ereignissen der Integration, die die Ereignis-Datenbank (Recorder) aufhebt, standardmäßig 10 Tage.\n\nSo bleibt es, wenn du nichts tust. Ohne Mitschrift im Tagebuch: unter Einstellungen → Geräte & Dienste → Tür-Assistent → Zahnrad „Mitschrift speichern“ ausschalten. Aus der Ereignis-Datenbank hält sie `recorder:` → `exclude:` → `event_types:` mit `tuer_assistent_grok_voice`, `tuer_assistent_gespraech` und `tuer_assistent_werkzeug` heraus. Diesen Hinweis kannst du ignorieren; er kommt dann nicht wieder."
     }
   },
   "entity": {

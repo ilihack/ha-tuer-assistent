@@ -163,7 +163,7 @@ class TuerAssistentFlow(ConfigFlow, domain=DOMAIN):
 
 
 class Optionen(OptionsFlow):
-    """„Konfigurieren“ am Eintrag: dieselbe Maske."""
+    """Das Zahnrad am Eintrag: dieselbe Maske."""
 
     async def async_step_init(self, user_input=None):
         return await _schritt(self, "init", user_input, self.config_entry.options, lambda werte: self.async_create_entry(data=werte))
