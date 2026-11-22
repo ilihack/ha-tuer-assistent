@@ -58,7 +58,7 @@ rules:
     comment: Der Zustand liegt in hass.data, weil der Dienst tuer_assistent.auflegen (async_setup) und die Werkzeuge die laufende Innenstation dort finden; bei genau einem Eintrag brächte runtime_data nur Umbau.
   test-before-configure:
     status: done
-    comment: Vor dem Speichern fragt die Maske xAI nach dem Schlüssel (ohne Kosten; antwortet xAI nicht, wird gespeichert), liest die Zeilen der Angaben und rendert Begrüßung und Anweisung streng. Die Anmeldung an der Türstation probt sie nicht (das bräuchte den Port der laufenden Innenstation); ob sie gilt, zeigt der Neustart von Grok Voice gleich nach dem Speichern (Stand in der Maske, Sensor „Empfang Störung“).
+    comment: Vor dem Speichern fragt die Maske xAI nach dem Schlüssel (ohne Kosten; antwortet xAI nicht, wird gespeichert), prüft die Nummer der Weiterleitung und rendert Begrüßung und Anweisung streng. Die Anmeldung an der Türstation probt sie nicht (das bräuchte den Port der laufenden Innenstation); ob sie gilt, zeigt der Neustart von Grok Voice gleich nach dem Speichern (Stand in der Maske, Sensor „Empfang Störung“).
   test-before-setup:
     status: done
     comment: Schlüssel, Station oder Passwort fehlen oder Port belegt → Warnung im Log, Sensor „Empfang Störung“ an. Ist der Name der Station nicht auflösbar, versucht es die Anmeldung weiter (Störung nach 3 min). Den Schlüssel prüft die Integration gleich beim Start bei xAI.

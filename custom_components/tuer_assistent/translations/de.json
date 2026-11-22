@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Tür-Assistent (Empfang)",
-        "description": "Der Empfang meldet sich als eigene Innenstation an der Türstation an und spricht mit Besuchern (Sprache zu Sprache mit xAI Grok Voice). Oben stehen die Namen, darunter Begrüßung und Anweisung und die Zugänge zu xAI und zur Türstation.",
+        "description": "Der Empfang meldet sich als eigene Innenstation an der Türstation an und spricht mit Besuchern (Sprache zu Sprache mit xAI Grok Voice). Oben stehen Begrüßung und Anweisung (der ganze Kontext in einem Text), darunter die Zugänge zu xAI, zur Türstation und für die Weiterleitung aufs Telefon.",
         "data": {
           "mitschrift_speichern": "Mitschrift speichern"
         },
@@ -11,30 +11,16 @@
           "mitschrift_speichern": "Die letzten Rufe mit Mitschrift in .storage/tuer_assistent.rufe festhalten. Aus: ohne Mitschrift, auch in den schon gespeicherten."
         },
         "sections": {
-          "namen": {
-            "name": "Bewohner und Namen",
-            "description": "Für wen der Empfang arbeitet und wer sonst im Haus wohnt.",
-            "data": {
-              "bewohner": "Bewohner",
-              "anrede": "Anrede",
-              "angaben": "Angaben"
-            },
-            "data_description": {
-              "bewohner": "Vor- und Nachname dessen, für den der Empfang arbeitet: Ihm gibt er Bescheid und für ihn nimmt er Nachrichten an. In der Anweisung die Variable bewohner.",
-              "anrede": "Wie die Werkzeuge ihn nennen: „Herrn Muster“, „Frau Muster“, „Familie Muster“ oder ohne Anrede der ganze Name. Die mitgelieferte Anweisung nennt ihn „Herr“ mit Nachnamen; für eine andere Anrede dort den Text anpassen.",
-              "angaben": "Je Zeile „name: wert“, zum Beispiel die Namen an den anderen Klingeln. Jede Zeile wird eine Variable der Anweisung: „dachgeschoss: Familie Beispiel“ steht dort als Variable dachgeschoss. Der Name vor dem Doppelpunkt nur aus Buchstaben ohne Umlaute, Ziffern und Unterstrich; der Wert ist Text und wird nie ausgeführt."
-            }
-          },
           "texte": {
             "name": "Begrüßung und Anweisung",
-            "description": "Was der Empfang als Erstes sagt und wie er sich verhält. Beides sind Vorlagen, bei jedem Ruf neu gerendert. Vorbelegt ist die mitgelieferte Vorgabe; unverändert oder leer gespeichert gilt sie weiter, auch die einer späteren Version.",
+            "description": "Die Anweisung ist der ganze Kontext in einem Text: für wen der Empfang arbeitet, wer sonst im Haus wohnt, wo die Paketbox ist, und wie er sich verhält. Beides sind Vorlagen, bei jedem Ruf neu gerendert. Vorbelegt ist die mitgelieferte Vorgabe mit erfundenen Namen; unverändert oder leer gespeichert gilt sie weiter, auch die einer späteren Version.",
             "data": {
               "begruessung": "Begrüßung",
               "anweisung": "Anweisung"
             },
             "data_description": {
               "begruessung": "Der erste Satz des Empfangs, wörtlich gesprochen. In der Anweisung die Variable begruessung.",
-              "anweisung": "Der Prompt. Variablen: bewohner, anrede, begruessung und je Zeile der Angaben eine. Eine Variable, die es nicht gibt, ist ein Fehler; mit dem Filter „default“ darf sie fehlen."
+              "anweisung": "Der Prompt mit allem, was der Empfang wissen muss. Vorlage: Variable begruessung und alles, was Vorlagen in Home Assistant können, etwa states('sensor.anwesend'). Eine Variable, die es nicht gibt, ist ein Fehler; mit dem Filter „default“ darf sie fehlen."
             }
           },
           "xai": {
@@ -49,7 +35,7 @@
               "schluessel": "API-Schlüssel aus dem xAI-Konto.",
               "modell": "„grok-voice-latest“ folgt den Aktualisierungen von xAI; ein Name mit Version legt es fest. Welches Modell xAI wirklich nimmt, zeigt der Stand.",
               "stimme": "Name der Stimme bei xAI, zum Beispiel eve.",
-              "stichwoerter": "Wörter, die die Erkennung kennen soll, durch Komma getrennt. Die großgeschriebenen Wörter aus „Bewohner“ und „Angaben“ (die Namen) kommen von selbst dazu."
+              "stichwoerter": "Wörter, die die Erkennung kennen soll, vor allem die Namen im Haus, durch Komma getrennt."
             }
           },
           "station": {
@@ -71,20 +57,18 @@
           },
           "weiterleitung": {
             "name": "Weiterleitung aufs Telefon",
-            "description": "Sagt ein Besucher, es sei wichtig (der Empfang ruft dann „bewohner_rufen“), ruft der Empfang über diesen SIP-Zugang die Nummer an. Der Besucher hört den Freiton; nimmt der Bewohner ab, sprechen beide miteinander, und jede Taste feuert das Ereignis tuer_assistent_taste (was die Taste bewirkt, etwa 1 = Tür auf, steht in einer eigenen Automation). Nimmt niemand ab, spricht der Empfang weiter. Erst mit allen vier Feldern aktiv; Probe: Dienst tuer_assistent.anruf_testen.",
+            "description": "Muss ein Besucher den Bewohner selbst sprechen, entscheidet das Modell nach der Anweisung, ihn zu verbinden (bewohner_rufen mit verbinden „ja“); dann ruft der Empfang über diesen SIP-Zugang die Nummer an. Der Besucher hört den Freiton; nimmt der Bewohner ab, sprechen beide miteinander, und jede Taste feuert das Ereignis tuer_assistent_taste (was die Taste bewirkt, etwa 1 = Tür auf, steht in einer eigenen Automation). Nimmt niemand ab, spricht der Empfang weiter. Erst mit allen vier Feldern aktiv; Probe: Aktion tuer_assistent.anruf_testen.",
             "data": {
               "sip_server": "SIP-Server",
               "sip_nutzer": "SIP-Benutzer",
               "sip_passwort": "SIP-Passwort",
-              "ziel": "Nummer, die angerufen wird",
-              "weiterleiten_wenn": "Weiterleiten, wenn"
+              "ziel": "Nummer, die angerufen wird"
             },
             "data_description": {
               "sip_server": "Name des SIP-Servers des Anbieters, bei Bedarf mit :Port (sonst 5060, UDP).",
               "sip_nutzer": "Benutzername des SIP-Zugangs.",
               "sip_passwort": "Passwort des SIP-Zugangs. Wird nie angezeigt: leer lassen, dann bleibt es.",
-              "ziel": "Telefonnummer, etwa die des Handys; +49 … oder 0 … .",
-              "weiterleiten_wenn": "Vorlage; nur wenn sie wahr ergibt, wird weitergeleitet, sonst wie ohne Zugang. Leer: immer. Vorgeschlagen ist dieselbe Bedingung wie „weg“ in der mitgelieferten Anweisung."
+              "ziel": "Telefonnummer, etwa die des Handys; +49 … oder 0 … ."
             }
           }
         }
@@ -94,11 +78,9 @@
       "leer": "„{feld}“ darf nicht leer sein.",
       "schluessel_fehlt": "Der xAI-Schlüssel fehlt (Abschnitt xAI).",
       "passwort_fehlt": "Das Passwort der Nebenstelle fehlt (Abschnitt Türstation).",
-      "angaben": "Angaben, Zeile {zeile}: erwartet wird „name: wert“ mit einem Namen aus Buchstaben ohne Umlaute, Ziffern und Unterstrich, der nicht doppelt und nicht bewohner, anrede, begruessung oder grok_voice ist.",
       "vorlage": "Begrüßung oder Anweisung lässt sich nicht rendern: {grund}",
       "schluessel": "xAI nimmt den Schlüssel nicht an: {grund}",
-      "ziel": "Die Nummer, die angerufen wird, ist keine Telefonnummer (erlaubt: Ziffern, am Anfang + oder 0).",
-      "vorlage_weiter": "„Weiterleiten, wenn“ lässt sich nicht rendern: {grund}"
+      "ziel": "Die Nummer, die angerufen wird, ist keine Telefonnummer (erlaubt: Ziffern, am Anfang + oder 0)."
     },
     "abort": {
       "single_instance_allowed": "Den Tür-Assistenten gibt es nur einmal; seine Einstellungen stehen am Eintrag unter „Konfigurieren“."
@@ -108,7 +90,7 @@
     "step": {
       "init": {
         "title": "Tür-Assistent (Empfang)",
-        "description": "Stand: {stand}. Namen, Begrüßung und Anweisung gelten ab dem nächsten Ruf. Ändert sich etwas an xAI, der Türstation oder „Mitschrift speichern“, startet der Empfang neu; ein laufender Ruf endet dabei. Schlüssel und Passwort werden nie angezeigt: leer lassen, dann bleiben sie, wie sie sind. Weiterleitung: {weiterleitung}.",
+        "description": "Stand: {stand}. Begrüßung, Anweisung, Stichwörter und Weiterleitung gelten ab dem nächsten Ruf. Ändert sich etwas an xAI, der Türstation oder „Mitschrift speichern“, startet der Empfang neu; ein laufender Ruf endet dabei. Schlüssel und Passwort werden nie angezeigt: leer lassen, dann bleiben sie, wie sie sind. Weiterleitung: {weiterleitung}.",
         "data": {
           "mitschrift_speichern": "Mitschrift speichern"
         },
@@ -116,30 +98,16 @@
           "mitschrift_speichern": "Die letzten Rufe mit Mitschrift in .storage/tuer_assistent.rufe festhalten. Aus: ohne Mitschrift, auch in den schon gespeicherten."
         },
         "sections": {
-          "namen": {
-            "name": "Bewohner und Namen",
-            "description": "Für wen der Empfang arbeitet und wer sonst im Haus wohnt.",
-            "data": {
-              "bewohner": "Bewohner",
-              "anrede": "Anrede",
-              "angaben": "Angaben"
-            },
-            "data_description": {
-              "bewohner": "Vor- und Nachname dessen, für den der Empfang arbeitet: Ihm gibt er Bescheid und für ihn nimmt er Nachrichten an. In der Anweisung die Variable bewohner.",
-              "anrede": "Wie die Werkzeuge ihn nennen: „Herrn Muster“, „Frau Muster“, „Familie Muster“ oder ohne Anrede der ganze Name. Die mitgelieferte Anweisung nennt ihn „Herr“ mit Nachnamen; für eine andere Anrede dort den Text anpassen.",
-              "angaben": "Je Zeile „name: wert“, zum Beispiel die Namen an den anderen Klingeln. Jede Zeile wird eine Variable der Anweisung: „dachgeschoss: Familie Beispiel“ steht dort als Variable dachgeschoss. Der Name vor dem Doppelpunkt nur aus Buchstaben ohne Umlaute, Ziffern und Unterstrich; der Wert ist Text und wird nie ausgeführt."
-            }
-          },
           "texte": {
             "name": "Begrüßung und Anweisung",
-            "description": "Was der Empfang als Erstes sagt und wie er sich verhält. Beides sind Vorlagen, bei jedem Ruf neu gerendert. Vorbelegt ist die mitgelieferte Vorgabe; unverändert oder leer gespeichert gilt sie weiter, auch die einer späteren Version.",
+            "description": "Die Anweisung ist der ganze Kontext in einem Text: für wen der Empfang arbeitet, wer sonst im Haus wohnt, wo die Paketbox ist, und wie er sich verhält. Beides sind Vorlagen, bei jedem Ruf neu gerendert. Vorbelegt ist die mitgelieferte Vorgabe mit erfundenen Namen; unverändert oder leer gespeichert gilt sie weiter, auch die einer späteren Version.",
             "data": {
               "begruessung": "Begrüßung",
               "anweisung": "Anweisung"
             },
             "data_description": {
               "begruessung": "Der erste Satz des Empfangs, wörtlich gesprochen. In der Anweisung die Variable begruessung.",
-              "anweisung": "Der Prompt. Variablen: bewohner, anrede, begruessung und je Zeile der Angaben eine. Eine Variable, die es nicht gibt, ist ein Fehler; mit dem Filter „default“ darf sie fehlen."
+              "anweisung": "Der Prompt mit allem, was der Empfang wissen muss. Vorlage: Variable begruessung und alles, was Vorlagen in Home Assistant können, etwa states('sensor.anwesend'). Eine Variable, die es nicht gibt, ist ein Fehler; mit dem Filter „default“ darf sie fehlen."
             }
           },
           "xai": {
@@ -154,7 +122,7 @@
               "schluessel": "API-Schlüssel aus dem xAI-Konto. Leer lassen: bleibt unverändert.",
               "modell": "„grok-voice-latest“ folgt den Aktualisierungen von xAI; ein Name mit Version legt es fest. Welches Modell xAI wirklich nimmt, zeigt der Stand.",
               "stimme": "Name der Stimme bei xAI, zum Beispiel eve.",
-              "stichwoerter": "Wörter, die die Erkennung kennen soll, durch Komma getrennt. Die großgeschriebenen Wörter aus „Bewohner“ und „Angaben“ (die Namen) kommen von selbst dazu."
+              "stichwoerter": "Wörter, die die Erkennung kennen soll, vor allem die Namen im Haus, durch Komma getrennt."
             }
           },
           "station": {
@@ -176,20 +144,18 @@
           },
           "weiterleitung": {
             "name": "Weiterleitung aufs Telefon",
-            "description": "Sagt ein Besucher, es sei wichtig (der Empfang ruft dann „bewohner_rufen“), ruft der Empfang über diesen SIP-Zugang die Nummer an. Der Besucher hört den Freiton; nimmt der Bewohner ab, sprechen beide miteinander, und jede Taste feuert das Ereignis tuer_assistent_taste (was die Taste bewirkt, etwa 1 = Tür auf, steht in einer eigenen Automation). Nimmt niemand ab, spricht der Empfang weiter. Erst mit allen vier Feldern aktiv; Probe: Dienst tuer_assistent.anruf_testen.",
+            "description": "Muss ein Besucher den Bewohner selbst sprechen, entscheidet das Modell nach der Anweisung, ihn zu verbinden (bewohner_rufen mit verbinden „ja“); dann ruft der Empfang über diesen SIP-Zugang die Nummer an. Der Besucher hört den Freiton; nimmt der Bewohner ab, sprechen beide miteinander, und jede Taste feuert das Ereignis tuer_assistent_taste (was die Taste bewirkt, etwa 1 = Tür auf, steht in einer eigenen Automation). Nimmt niemand ab, spricht der Empfang weiter. Erst mit allen vier Feldern aktiv; Probe: Aktion tuer_assistent.anruf_testen.",
             "data": {
               "sip_server": "SIP-Server",
               "sip_nutzer": "SIP-Benutzer",
               "sip_passwort": "SIP-Passwort",
-              "ziel": "Nummer, die angerufen wird",
-              "weiterleiten_wenn": "Weiterleiten, wenn"
+              "ziel": "Nummer, die angerufen wird"
             },
             "data_description": {
               "sip_server": "Name des SIP-Servers des Anbieters, bei Bedarf mit :Port (sonst 5060, UDP).",
               "sip_nutzer": "Benutzername des SIP-Zugangs.",
               "sip_passwort": "Passwort des SIP-Zugangs. Wird nie angezeigt: leer lassen, dann bleibt es.",
-              "ziel": "Telefonnummer, etwa die des Handys; +49 … oder 0 … .",
-              "weiterleiten_wenn": "Vorlage; nur wenn sie wahr ergibt, wird weitergeleitet, sonst wie ohne Zugang. Leer: immer. Vorgeschlagen ist dieselbe Bedingung wie „weg“ in der mitgelieferten Anweisung."
+              "ziel": "Telefonnummer, etwa die des Handys; +49 … oder 0 … ."
             }
           }
         }
@@ -199,11 +165,9 @@
       "leer": "„{feld}“ darf nicht leer sein.",
       "schluessel_fehlt": "Der xAI-Schlüssel fehlt (Abschnitt xAI).",
       "passwort_fehlt": "Das Passwort der Nebenstelle fehlt (Abschnitt Türstation).",
-      "angaben": "Angaben, Zeile {zeile}: erwartet wird „name: wert“ mit einem Namen aus Buchstaben ohne Umlaute, Ziffern und Unterstrich, der nicht doppelt und nicht bewohner, anrede, begruessung oder grok_voice ist.",
       "vorlage": "Begrüßung oder Anweisung lässt sich nicht rendern: {grund}",
       "schluessel": "xAI nimmt den Schlüssel nicht an: {grund}",
-      "ziel": "Die Nummer, die angerufen wird, ist keine Telefonnummer (erlaubt: Ziffern, am Anfang + oder 0).",
-      "vorlage_weiter": "„Weiterleiten, wenn“ lässt sich nicht rendern: {grund}"
+      "ziel": "Die Nummer, die angerufen wird, ist keine Telefonnummer (erlaubt: Ziffern, am Anfang + oder 0)."
     }
   },
   "issues": {

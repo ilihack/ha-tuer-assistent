@@ -1,7 +1,7 @@
 """Diagnose zum Herunterladen (Einstellungen → Geräte & Dienste → Tür-Assistent → drei Punkte → „Diagnose herunterladen“).
 
 Enthält, was zur Fehlersuche taugt, und nichts, was nicht aus dem Haus soll: keinen Schlüssel, kein Passwort, keine Adresse der
-Station, keine Namen, keine Anweisung und keine Mitschrift; von den Einstellungen nur, welche gesetzt sind und wie die Angaben heißen,
+Station, keine Namen, keine Anweisung und keine Mitschrift; von den Einstellungen nur, ob sie eigen sind, und die Zahl der Stichwörter,
 nie ihre Werte, vom SIP-Zugang nur, ob er vollständig ist (nie Server, Benutzer oder Nummer). Das Tagebuch der letzten Rufe kommt mit Zeiten,
 Zahlen, dem technischen Ablauf und dem Grund des Endes; was Besucher und Empfang gesagt haben, bleibt in `.storage/tuer_assistent.rufe`. Version und Manifest setzt
 Home Assistant selbst dazu.
@@ -13,7 +13,7 @@ import time
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from . import DOMAIN, STAND, VORGABEN, angaben_lesen
+from . import DOMAIN, STAND, VORGABEN
 from .weiterleitung import stand as weiterleitung_stand
 
 OHNE = ("mitschrift",)  # Felder eines Rufs, die nicht in die Diagnose gehören
@@ -30,15 +30,10 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
         "grok_voice": "eingetragen" if daten.get("grok_voice") else "nicht eingetragen",
     }
     e = entry.options
-    try:
-        angaben: object = sorted(angaben_lesen(e.get("angaben")))
-    except ValueError:
-        angaben = "nicht lesbar"
-    aus["einstellungen"] = {"bewohner": bool(e.get("bewohner")), "anrede": e.get("anrede") or VORGABEN["anrede"], "angaben": angaben,
-                            "begruessung": "eigene" if e.get("begruessung") else "Vorgabe",
+    aus["einstellungen"] = {"begruessung": "eigene" if e.get("begruessung") else "Vorgabe",
                             "anweisung": "eigene, %d Zeichen" % len(str(e["anweisung"])) if e.get("anweisung") else "Vorgabe",
-                            "stichwoerter": bool(e.get("stichwoerter")), "modell": e.get("modell") or VORGABEN["modell"],
-                            "weiterleitung": weiterleitung_stand(e), "weiterleiten_wenn": bool(e.get("weiterleiten_wenn"))}
+                            "stichwoerter": len(e.get("stichwoerter", "").split(",")) if e.get("stichwoerter") else 0,
+                            "modell": e.get("modell") or VORGABEN["modell"], "weiterleitung": weiterleitung_stand(e)}
     if bruecke is not None:
         jetzt = time.monotonic()  # seit wann: Die Störung kommt erst nach 3 min (Anmeldung) und 6 h (xAI), die Diagnose zeigt den Weg dahin
         aus["innenstation"] = {"kennung": bruecke.kennung, "port": bruecke.port, "angemeldet": bruecke.angemeldet, "xai": bruecke.xai,

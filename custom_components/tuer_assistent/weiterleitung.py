@@ -1,9 +1,9 @@
 """Weiterleitung aufs Telefon über einen eigenen SIP-Zugang (Wort des Betreibers vom 21.11.2026: „trage es ein als Möglichkeit so das
 nun der Tür Assistent wenn jemand sagt es wäre wichtig weiterleitet. und schau das ich mit 1 die Tür öffnen kann“).
 
-Ablauf (sprache.py ruft es): Ruft der Empfang bewohner_rufen, ist ein Zugang eingetragen und gilt „Weiterleiten, wenn“, ruft die
-Integration über den Zugang die eingetragene Nummer an. Der Besucher hört nach dem Satz des Empfangs den Freiton; nimmt der Bewohner
-ab, geht der Ton zwischen Station und Telefon hin und her (ohne xAI, ohne Umrechnen: angeboten wird nur der Codec der Station). Drückt
+Ablauf (sprache.py ruft es): Ruft der Empfang bewohner_rufen mit verbinden „ja“ (das Modell entscheidet nach der Anweisung) und
+ist ein Zugang eingetragen, ruft die Integration über den Zugang die eingetragene Nummer an. Der Besucher hört nach dem Satz des
+Empfangs den Freiton; nimmt der Bewohner ab, geht der Ton zwischen Station und Telefon hin und her (ohne xAI, ohne Umrechnen: angeboten wird nur der Codec der Station). Drückt
 er eine Taste, feuert das Ereignis `tuer_assistent_taste` mit `taste` (und `probe`), mehr nicht: Was eine Taste bewirkt (1 = Haustür
 auf), steht in einer Automation der Anlage. Tasten gibt es nur in Anrufen, die die Integration selbst gewählt hat; ein Anruf auf den
 Zugang wird abgewiesen. Nimmt niemand ab (KLINGELN s, besetzt, abgelehnt, Störung), spricht der Empfang weiter.

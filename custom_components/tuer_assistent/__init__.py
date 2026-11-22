@@ -7,7 +7,7 @@ Aufbau (für jeden, der hier etwas ändert, Mensch oder KI; mehr in README.md):
 - sip.py           reine Hilfen ohne Zustand: SIP-Nachrichten zerlegen und beantworten, SDP, RTP, Digest, Adressen im Hausnetz.
 - weiterleitung.py die Weiterleitung aufs Telefon über einen eigenen SIP-Zugang (seit 2.8.0) und der Dienst `anruf_testen`.
 - config_flow.py   die Maske (Einstellungen → Geräte & Dienste → Tür-Assistent → Konfigurieren).
-- vorgabe.py       die mitgelieferte Begrüßung und Anweisung (Prompt) und die Beispiel-Angaben.
+- vorgabe.py       die mitgelieferte Begrüßung und Anweisung (Prompt, der ganze Kontext in einem Text, mit erfundenen Namen).
 - binary_sensor.py der Sensor „Empfang Störung“; diagnostics.py die Diagnose zum Herunterladen.
 - translations/, icons.json, services.yaml, quality_scale.yaml, brand/: Texte, Symbole, Dienst, Prüfliste, Symbol der Integration.
 Regeln: Kein Name, keine Adresse und kein Schlüssel im Code; alles Persönliche steht in den Einstellungen des Eintrags, denn dieselben
@@ -18,9 +18,11 @@ eine Nachricht weitergeben und auflegen können (Wort des Betreibers vom 10.11.2
 
 Was ein Werkzeug tut: Es feuert das Ereignis `tuer_assistent_werkzeug` mit dem Namen des Werkzeugs und seinen Textfeldern. Mehr nicht.
 Was daraus folgt (Handy, Auflegen), steht in einer Automation der Anlage; dort lässt es sich ändern. Einzige Ausnahme: Ist ein
-SIP-Zugang eingetragen (weiterleitung.py), ruft bewohner_rufen das Telefon des Bewohners an; seine Tasten feuern
-`tuer_assistent_taste`, und was eine Taste bewirkt, steht wieder in einer Automation.
-- bewohner_rufen(anliegen): ein Besucher möchte zum Bewohner (sein Name kommt aus den Einstellungen, Feld „Bewohner“).
+SIP-Zugang eingetragen (weiterleitung.py) und ruft das Modell bewohner_rufen mit verbinden „ja“, ruft die Integration das Telefon
+des Bewohners an; seine Tasten feuern `tuer_assistent_taste`, und was eine Taste bewirkt, steht wieder in einer Automation.
+- bewohner_rufen(anliegen, verbinden): ein Besucher möchte zum Bewohner; verbinden „ja“, wenn er ihn selbst sprechen soll (wann, sagt
+  die Anweisung; Wort des Betreibers vom 22.11.2026: „das mit dem Anruf darf grok selber entscheiden, auch auf weitere Satzarten, ich
+  muss mit ihm reden, ich brauche deine Unterschrift“). Wer der Bewohner ist, steht nur in der Anweisung.
 - nachricht_weitergeben(fuer, nachricht): ein Besucher hinterlässt eine Nachricht, oder ein Zusteller meldet ein abgegebenes Paket.
 - auflegen(): der Besucher hat sich verabschiedet.
 
@@ -31,10 +33,11 @@ einmal, immer dasselbe Ergebnis. Jedes Ergebnis sagt dem Modell, dass es jetzt a
 schnelles Modell rief am 10.11.2026 zehnmal `auflegen` in einer Antwort).
 
 Einstellungen (config_flow.py; Wort des Betreibers vom 14.11.2026: „die Integration braucht eine konfigurierbare Oberfläche, und dort
-können wir unsere Instruction reinladen und auch die Klartextnamen“): oben der Bewohner mit Anrede und die Angaben (je Zeile
-`name: wert`), darunter Begrüßung und Anweisung (Vorlagen; die Vorgaben in vorgabe.py gelten, solange dort kein eigener Text steht),
-xAI (Schlüssel, Modell, Stimme, Stichwörter) und die Türstation (Adresse, Nebenstelle, Passwort, Ports); zuletzt „Mitschrift
-speichern“. Bewohner, Angaben, Begrüßung und Anweisung liest jeder Ruf frisch; ändert sich etwas an der Verbindung (VERBINDUNG), lädt
+können wir unsere Instruction reinladen“; seit 2.9.0 ist die Anweisung der ganze Kontext in einem Text, sein Wort vom 22.11.2026:
+„Man hat einmal diesen gigantischen Text, dann ist es auch universaler“): oben Begrüßung und Anweisung (Vorlagen; die Vorgaben in
+vorgabe.py gelten, solange dort kein eigener Text steht), darunter xAI (Schlüssel, Modell, Stimme, Stichwörter), die Türstation
+(Adresse, Nebenstelle, Passwort, Ports) und die Weiterleitung aufs Telefon (SIP-Zugang, Nummer); zuletzt „Mitschrift speichern“.
+Begrüßung, Anweisung, Stichwörter und Weiterleitung liest jeder Ruf frisch; ändert sich etwas an der Verbindung (VERBINDUNG), lädt
 der Eintrag neu: Grok Voice hält an (ein laufender Ruf endet) und startet neu, ohne Neustart von Home Assistant. Ohne Schlüssel,
 Station und Passwort bleibt Grok Voice aus. Seit 2.7.0 ist das der einzige Weg (Wort des Betreibers vom 15.11.2026: „den alten Textweg
 kannst du komplett entfernen“): keine Text-Agenten, keine Sprachkette, keine Zeile in configuration.yaml.
@@ -48,7 +51,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import logging
-import re
 
 import voluptuous as vol
 
@@ -77,38 +79,38 @@ EINMAL = 3  # s, in denen dasselbe Werkzeug auch mit anderen Feldern kein zweite
 JE_MINUTE = 6  # Ereignisse aller Werkzeuge zusammen
 # Vorgaben der Einstellungen für die Maske in config_flow.py (die Texte stehen in vorgabe.py)
 VORGABEN = {"kennung": "9904", "port": 5062, "station_port": 5060, "stimme": "eve", "modell": "grok-voice-latest",
-            "mitschrift_speichern": True, "anrede": "Herr"}
-ANREDEN = ("Herr", "Frau", "Familie", "ohne")  # wie die Werkzeuge den Bewohner nennen: „Herrn Muster“, „Frau Muster“, „Familie Muster“, ohne: der ganze Name
+            "mitschrift_speichern": True}
 PFLICHT = ("schluessel", "station", "passwort")  # ohne sie bleibt Grok Voice aus
 # Ändert sich davon etwas, startet Grok Voice neu (der Eintrag lädt neu); alles andere liest jeder Ruf frisch aus den Einstellungen.
 VERBINDUNG = ("schluessel", "station", "kennung", "passwort", "port", "station_port", "stimme", "modell", "mitschrift_speichern")
-RESERVIERT = ("bewohner", "anrede", "begruessung", "grok_voice")  # Variablen der Anweisung, die nicht aus dem Feld „Angaben“ kommen
 AUS = "aus (nicht eingerichtet)"
 _LOGGER = logging.getLogger(__name__)
 
-# Name, Beschreibung für das Modell, Textfelder, Ergebnis für das Modell. Der Bewohner steht nicht im Code: {dat}, {akk}, {nom} füllt
-# werkzeuge() aus den Einstellungen (Felder „Bewohner“ und „Anrede“: „Herrn <Nachname>“), ohne Namen allgemein.
+# Name, Beschreibung für das Modell, Textfelder, Ergebnis für das Modell. Der Bewohner steht nicht im Code und nicht in den Werkzeugen:
+# wer er ist, sagt die Anweisung.
 WEITER = " Rufe jetzt kein Werkzeug mehr auf, sondern antworte dem Besucher mit dem vorgesehenen Satz, in seiner Sprache."
 WERKZEUGE = (
     ("bewohner_rufen",
-     "Gibt {dat} Bescheid, dass jemand zu ihm möchte oder dass etwas für ihn wichtig ist. Nicht für Sendungen, die in die "
-     "Paketbox kommen. anliegen: auf Deutsch, in wenigen Worten, wer da ist und was er möchte.",
-     ("anliegen",), "{Nom} hat Bescheid bekommen."),
+     "Gibt dem Bewohner (für wen du arbeitest, steht in deiner Anweisung) Bescheid, dass jemand zu ihm möchte oder dass etwas für "
+     "ihn wichtig ist. Nicht für Sendungen, die in die Paketbox kommen. anliegen: auf Deutsch, in wenigen Worten, wer da ist und was "
+     "er möchte. verbinden: „ja“, wenn der Besucher ihn jetzt selbst am Telefon sprechen soll (wann, sagt deine Anweisung), sonst „nein“.",
+     ("anliegen", "verbinden"), "Der Bewohner hat Bescheid bekommen."),
     ("nachricht_weitergeben",
-     "Gibt eine Nachricht des Besuchers an {akk} weiter, auch die Meldung eines Zustellers, dass er eine Sendung für ihn "
-     "abgegeben hat, selbst wenn er sich dabei verabschiedet. Nur für {akk}, nie für andere Bewohner. fuer: {nom}. "
+     "Gibt eine Nachricht des Besuchers an den Bewohner weiter (für wen du arbeitest, steht in deiner Anweisung), auch die Meldung "
+     "eines Zustellers, dass er eine Sendung für ihn abgegeben hat, selbst wenn er sich dabei verabschiedet. Nur für ihn, nie für "
+     "andere Bewohner im Haus. fuer: sein Name. "
      "nachricht: die Nachricht auf Deutsch, sinngetreu in den Worten des Besuchers.",
      ("fuer", "nachricht"), "Die Nachricht ist weitergegeben."),
     ("auflegen",
      "Beendet das Gespräch. Nur verwenden, wenn der Besucher sich verabschiedet hat (Tschüss, Auf Wiedersehen oder Ähnliches, in "
-     "jeder Sprache) und nichts an {akk} weiterzugeben ist, und nie zusammen mit einem anderen Werkzeug.",
+     "jeder Sprache) und nichts an den Bewohner weiterzugeben ist, und nie zusammen mit einem anderen Werkzeug.",
      (), "Das Gespräch wird gleich beendet."),
 )
-# Mit eingetragenem SIP-Zugang (weiterleitung.py) ersetzt dieses Ergebnis das von bewohner_rufen; nimmt er nicht ab, sagt der Empfang
-# NICHT_ERREICHT wörtlich und das Gespräch geht weiter.
-ERGEBNIS_WEITER = ("{Nom} wird jetzt angerufen. Sag dem Besucher in einem kurzen Satz, dass du ihn verbindest und er bitte kurz "
-                   "warten soll.")
-NICHT_ERREICHT = "{Nom} ist leider gerade nicht erreichbar. Sie können ihm gern eine Nachricht hinterlassen."
+# Mit eingetragenem SIP-Zugang (weiterleitung.py) und verbinden „ja“ ersetzt dieses Ergebnis das von bewohner_rufen; nimmt er nicht ab,
+# sagt der Empfang NICHT_ERREICHT wörtlich (ohne Namen, er steht nur in der Anweisung) und das Gespräch geht weiter.
+ERGEBNIS_WEITER = ("Der Bewohner wird jetzt angerufen. Sag dem Besucher in einem kurzen Satz, dass du ihn verbindest und er bitte "
+                   "kurz warten soll.")
+NICHT_ERREICHT = "Leider erreiche ich gerade niemanden. Sie können gern eine Nachricht hinterlassen."
 
 
 def einstellungen(hass: HomeAssistant) -> Mapping:
@@ -122,44 +124,9 @@ def sauber(wert: object, laenge: int = 200) -> str:
     return " ".join("".join(z if z.isprintable() else " " for z in str(wert or "")).split())[:laenge]
 
 
-def angaben_lesen(text: object) -> dict[str, str]:
-    """Das Feld „Angaben“: je Zeile `name: wert` eine Variable der Anweisung (leere Zeilen und solche mit # zählen nicht). Wirft
-    ValueError mit der Nummer der ersten Zeile, die nicht passt: kein Doppelpunkt, der Name kein einfacher Bezeichner, reserviert
-    (RESERVIERT) oder doppelt."""
-    aus: dict[str, str] = {}
-    for nr, zeile in enumerate(str(text or "").splitlines(), 1):
-        if not zeile.strip() or zeile.strip().startswith("#"):
-            continue
-        name, trenner, wert = zeile.partition(":")
-        name = name.strip()
-        if not trenner or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) or name in RESERVIERT or name in aus:
-            raise ValueError(str(nr))
-        aus[name] = sauber(wert)
-    return aus
-
-
-def nachname(hass: HomeAssistant) -> str:
-    """Nachname des Bewohners aus den Einstellungen (letztes Wort, nur Buchstaben, Ziffern und . , -); leer ohne Wert."""
-    roh = re.sub(r"[^0-9A-Za-zÀ-ÿ .,-]", "", str(einstellungen(hass).get("bewohner") or ""))[:60].split()
-    return roh[-1] if roh else ""
-
-
-def formen(hass: HomeAssistant) -> dict[str, str]:
-    """Der Bewohner aus den Einstellungen in der gewählten Anrede je Fall (dat, akk, nom, Nom); ohne Namen „dem Bewohner“."""
-    n = nachname(hass)
-    anrede = einstellungen(hass).get("anrede") or VORGABEN["anrede"]
-    if not n:
-        return {"dat": "dem Bewohner", "akk": "den Bewohner", "nom": "der Bewohner", "Nom": "Der Bewohner"}
-    if anrede == "Herr":
-        return {"dat": f"Herrn {n}", "akk": f"Herrn {n}", "nom": f"Herr {n}", "Nom": f"Herr {n}"}
-    voll = f"{anrede} {n}" if anrede in ("Frau", "Familie") else sauber(einstellungen(hass).get("bewohner"), 60)  # ohne Anrede: der ganze Name
-    return {"dat": voll, "akk": voll, "nom": voll, "Nom": voll}
-
-
 def werkzeuge(hass: HomeAssistant) -> list[tuple[str, str, tuple[str, ...], str]]:
-    """Die drei Werkzeuge mit dem Bewohner aus den Einstellungen in der gewählten Anrede."""
-    f = formen(hass)
-    return [(name, text.format(**f), felder, ergebnis.format(**f)) for name, text, felder, ergebnis in WERKZEUGE]
+    """Die drei Werkzeuge (fest; wer der Bewohner ist, steht in der Anweisung)."""
+    return list(WERKZEUGE)
 
 
 def auflegen(hass: HomeAssistant) -> str:
@@ -297,7 +264,7 @@ def _verbindung(optionen: Mapping) -> dict:
 
 async def _geaendert(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Nach geänderten Einstellungen: Nur wenn sich an der Verbindung etwas geändert hat, lädt der Eintrag neu (Grok Voice startet neu,
-    ein laufender Ruf endet). Bewohner, Angaben, Begrüßung und Anweisung liest ohnehin jeder Ruf frisch."""
+    ein laufender Ruf endet). Begrüßung, Anweisung, Stichwörter und Weiterleitung liest ohnehin jeder Ruf frisch."""
     if _verbindung(entry.options) != hass.data[DOMAIN].get("verbindung"):
         await hass.config_entries.async_reload(entry.entry_id)
 

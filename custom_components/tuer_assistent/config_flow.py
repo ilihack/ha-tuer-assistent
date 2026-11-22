@@ -1,22 +1,23 @@
 """Einrichtung über die Oberfläche: der eine Eintrag „Tür-Assistent (Empfang)“ und alle seine Einstellungen.
 
-Der Eintrag entsteht über „Integration hinzufügen“ (gleich mit der Maske); danach stehen die Einstellungen am Eintrag unter
-„Konfigurieren“. Eine Zeile in configuration.yaml gibt es seit 2.7.0 nicht mehr.
+Der Eintrag entsteht über „Integration hinzufügen“ (gleich mit der Maske); danach stehen die Einstellungen am Eintrag hinter dem
+Zahnrad („Konfigurieren“). Eine Zeile in configuration.yaml gibt es seit 2.7.0 nicht mehr.
 
-Die Maske, von oben (sein Wort vom 14.11.2026: „dort können wir unsere Instruction reinladen und auch die Klartextnamen, vielleicht
-weiter oben, damit man sie dann schnell editieren kann“):
-- „Bewohner und Namen“ (immer offen): der Bewohner, für den der Empfang arbeitet, seine Anrede und die Angaben (je Zeile `name: wert`,
-  jede wird eine Variable der Anweisung).
-- „Begrüßung und Anweisung“: beides Vorlagen, vorbelegt mit der Vorgabe aus vorgabe.py. Gespeichert wird nur eigener Text: Bleibt ein
-  Feld bei der Vorgabe (oder leer), gilt die Vorgabe der Integration, auch die einer späteren Version.
+Die Maske, von oben (sein Wort vom 22.11.2026: „Ist nicht alles einfach nur in Kontext, dieses einmal dieses Textfenster? Dann muss
+die Integration nicht das unterscheiden, was oben steht, unten ist. Man hat einmal diesen gigantischen Text, dann ist es auch
+universaler“; bis 2.8.0 standen Bewohner, Anrede und Angaben in eigenen Feldern darüber):
+- „Begrüßung und Anweisung“ (immer offen): beides Vorlagen, vorbelegt mit der Vorgabe aus vorgabe.py. Die Anweisung ist der ganze
+  Kontext: wer wo wohnt, wo die Paketbox ist, die Regeln. Gespeichert wird nur eigener Text: Bleibt ein Feld bei der Vorgabe (oder
+  leer), gilt die Vorgabe der Integration, auch die einer späteren Version.
 - „xAI“: Schlüssel, Modell, Stimme, Stichwörter für die Erkennung.
 - „Türstation“: Adresse, Nebenstelle, Passwort, Ports.
-- „Weiterleitung aufs Telefon“ (seit 2.8.0, weiterleitung.py): SIP-Server, Benutzer, Passwort, die Nummer, die angerufen wird, und
-  „Weiterleiten, wenn“ (Vorlage; leer: immer). Unvollständig bleibt die Weiterleitung aus; was fehlt, sagt der Stand oben in der Maske.
+- „Weiterleitung aufs Telefon“ (seit 2.8.0, weiterleitung.py): SIP-Server, Benutzer, Passwort, die Nummer, die angerufen wird. Wann
+  weitergeleitet wird, entscheidet das Modell nach der Anweisung (verbinden bei bewohner_rufen). Unvollständig bleibt die Weiterleitung
+  aus; was fehlt, sagt der Stand oben in der Maske, und der Abschnitt steht offen, bis sie vollständig ist.
 - „Mitschrift speichern“.
-Ist Grok Voice eingerichtet, stehen alle Abschnitte außer dem ersten zugeklappt: Geändert werden meist nur die Namen.
+Ist Grok Voice eingerichtet, stehen xAI und Türstation zugeklappt.
 
-Vor dem Speichern prüft sie, was sonst erst der nächste Ruf zeigte: Pflichtfelder, die Zeilen der Angaben, ob Begrüßung und Anweisung
+Vor dem Speichern prüft sie, was sonst erst der nächste Ruf zeigte: Pflichtfelder, ob Begrüßung und Anweisung
 sich rendern lassen (streng: auch eine Variable, die es nicht gibt, ist ein Fehler; die Meldung von Jinja steht nur in der Maske, nie
 im Log, denn sie zitiert die Zeile), und ob xAI den Schlüssel annimmt (eine Abfrage ohne Kosten; antwortet xAI nicht, wird gespeichert).
 Schlüssel und Passwort sind Passwortfelder und nie vorbelegt (sonst ginge der gespeicherte Wert an jeden Browser, der die Maske öffnet);
@@ -37,28 +38,20 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import section
 from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.selector import (
-    SelectSelector,
-    SelectSelectorConfig,
-    SelectSelectorMode,
     TemplateSelector,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
 )
-from homeassistant.helpers.template import Template
 
-from . import ANREDEN, DOMAIN, PFLICHT, STAND, VORGABEN, angaben_lesen, vorgabe
+from . import DOMAIN, PFLICHT, STAND, VORGABEN, vorgabe
 from .weiterleitung import FELDER, nummer, stand as weiterleitung_stand
 
 TITEL = "Tür-Assistent (Empfang)"
 GEHEIM = ("schluessel", "passwort", "sip_passwort")
 _VERDECKT = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
-_MEHRZEILIG = TextSelector(TextSelectorConfig(multiline=True))
 # Abschnitt → Felder in der Reihenfolge der Maske: (Name, Prüfer, Pflicht)
 ABSCHNITTE: dict[str, tuple[tuple[str, object, bool], ...]] = {
-    "namen": (("bewohner", cv.string, False),
-              ("anrede", SelectSelector(SelectSelectorConfig(options=list(ANREDEN), mode=SelectSelectorMode.DROPDOWN)), True),
-              ("angaben", _MEHRZEILIG, False)),
     "texte": (("begruessung", TemplateSelector(), False),
               ("anweisung", TemplateSelector(), False)),
     "xai": (("schluessel", _VERDECKT, False),  # ohne Pflicht, weil leer „unverändert“ heißt; ob einer da ist, prüft pruefen()
@@ -73,17 +66,17 @@ ABSCHNITTE: dict[str, tuple[tuple[str, object, bool], ...]] = {
     "weiterleitung": (("sip_server", cv.string, False),
                       ("sip_nutzer", cv.string, False),
                       ("sip_passwort", _VERDECKT, False),
-                      ("ziel", cv.string, False),
-                      ("weiterleiten_wenn", TemplateSelector(), False)),
+                      ("ziel", cv.string, False)),
 }
 TEXT = ("station", "kennung", "stimme", "modell")  # dürfen nicht leer sein
 TEXTE = {"begruessung": vorgabe.BEGRUESSUNG, "anweisung": vorgabe.ANWEISUNG}  # vorbelegt; gespeichert wird nur, was davon abweicht
-VORSCHLAG = {**VORGABEN, "angaben": vorgabe.ANGABEN, "weiterleiten_wenn": vorgabe.WEITERLEITEN_WENN, **TEXTE}
+VORSCHLAG = {**VORGABEN, **TEXTE}
 
 
-def maske(vorschlag: Mapping, eingerichtet: bool) -> vol.Schema:
+def maske(vorschlag: Mapping, eingerichtet: bool, weiter_offen: bool = True) -> vol.Schema:
     """Die Maske mit ihren Abschnitten, vorbelegt mit `vorschlag`. Solange Schlüssel, Station oder Passwort fehlen, stehen alle
-    Abschnitte offen, danach nur noch der erste: Geändert werden meist nur die Namen."""
+    Abschnitte offen; danach Begrüßung und Anweisung, und die Weiterleitung, solange sie nicht vollständig ist."""
+    offen = {"texte", "weiterleitung"} if weiter_offen else {"texte"}
     felder: dict = {}
     for abschnitt, liste in ABSCHNITTE.items():
         innen: dict = {}
@@ -92,7 +85,7 @@ def maske(vorschlag: Mapping, eingerichtet: bool) -> vol.Schema:
             art = vol.Required if pflicht else vol.Optional
             innen[art(name, description={"suggested_value": wert}) if wert not in (None, "") else art(name)] = pruefer
         art = vol.Optional if abschnitt == "weiterleitung" else vol.Required  # ganz ohne Eingabe darf der Browser sie weglassen
-        felder[art(abschnitt)] = section(vol.Schema(innen), {"collapsed": eingerichtet and abschnitt != "namen"})
+        felder[art(abschnitt)] = section(vol.Schema(innen), {"collapsed": eingerichtet and abschnitt not in offen})
     felder[vol.Required("mitschrift_speichern", default=bool(vorschlag.get("mitschrift_speichern", True)))] = cv.boolean
     return vol.Schema(felder)
 
@@ -113,20 +106,11 @@ async def pruefen(hass: HomeAssistant, werte: dict) -> tuple[str, dict[str, str]
     if fehlt:  # Schlüssel und Passwort haben eigene Sätze (leer gelassen heißt sonst „unverändert“); die übrigen verlangt schon die Maske
         return (fehlt[0] + "_fehlt" if fehlt[0] in GEHEIM else "leer"), {"feld": fehlt[0]}
     try:
-        angaben_lesen(werte.get("angaben"))
-    except ValueError as err:
-        return "angaben", {"zeile": str(err)}
-    try:
         texte(hass, werte)
     except TemplateError as err:  # der Text von Jinja nennt die Zeile; er steht nur hier in der Maske
         return "vorlage", {"grund": str(err)[:300]}
     if werte.get("ziel") and not nummer(werte["ziel"]):
         return "ziel", {}
-    if werte.get("weiterleiten_wenn"):
-        try:
-            Template(str(werte["weiterleiten_wenn"]), hass).async_render(parse_result=False)
-        except TemplateError as err:
-            return "vorlage_weiter", {"grund": str(err)[:300]}
     try:
         async with asyncio.timeout(6):  # die Maske soll nicht lange hängen
             zustand = await schluessel_abfragen(hass, werte["schluessel"])
@@ -155,10 +139,11 @@ async def _schritt(flow, schritt: str, eingabe: dict | None, alt: Mapping, ferti
     # vorbelegt mit Vorgaben und Gespeichertem, ohne Schlüssel und Passwort; nach einem Fehler mit der Eingabe (sie kam aus diesem Browser)
     vorschlag = {**VORSCHLAG, **{k: v for k, v in alt.items() if k not in GEHEIM}, **flach(eingabe or {})}
     stand = flow.hass.states.get(STAND)
-    platz = {"feld": "", "zeile": "", "grund": "", **platz,
+    platz = {"feld": "", "grund": "", **platz,
              "stand": ", ".join(str(stand.attributes.get(k)) for k in ("grok_voice", "xai", "modell") if stand and stand.attributes.get(k)) or "–",
              "weiterleitung": weiterleitung_stand(alt)}
-    return flow.async_show_form(step_id=schritt, data_schema=maske(vorschlag, all(alt.get(k) for k in PFLICHT)),
+    return flow.async_show_form(step_id=schritt, data_schema=maske(vorschlag, all(alt.get(k) for k in PFLICHT),
+                                                                   weiterleitung_stand(alt) != "eingerichtet"),
                                 errors={"base": fehler} if fehler else {}, description_placeholders=platz)
 
 

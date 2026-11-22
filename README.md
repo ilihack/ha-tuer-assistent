@@ -3,7 +3,7 @@
 Ein Klingelknopf an einer Dahua-Türstation, hinter dem eine KI antwortet: Sie fängt Paketboten ab und schickt sie zur Paketbox. Sie sagt
 Besuchern, wo sie klingeln müssen, gibt dem Bewohner Bescheid, nimmt Nachrichten an und legt nach der Verabschiedung auf. Mit einem
 eigenen SIP-Zugang stellt sie Dringendes zu seinem Telefon durch; die Tür öffnet er dann selbst mit der Taste 1. Im Haus kann die KI
-nichts schalten. Eingerichtet wird alles in der Oberfläche von Home Assistant: Namen, Begrüßung, Anweisung (Prompt), xAI-Schlüssel,
+nichts schalten. Eingerichtet wird alles in der Oberfläche von Home Assistant: Begrüßung, Anweisung (Prompt, der ganze Kontext in einem Text), xAI-Schlüssel,
 Türstation, SIP-Zugang.
 
 *In English:* a Home Assistant custom integration that registers as a SIP indoor station at a door station (tested with Dahua VTO) and
@@ -81,7 +81,7 @@ Besucher drückt den Knopf
 
 | Werkzeug | Felder | Was passiert |
 |---|---|---|
-| `bewohner_rufen` | anliegen | Ereignis; die Automation lässt das Handy klingeln; danach legt die Integration auf (Station frei für die App). Mit SIP-Zugang und erfüllter Bedingung ruft die Integration stattdessen sein Telefon an (siehe Weiterleitung) |
+| `bewohner_rufen` | anliegen, verbinden | Ereignis; die Automation lässt das Handy klingeln; danach legt die Integration auf (Station frei für die App). Mit SIP-Zugang und verbinden „ja“ (das Modell entscheidet nach der Anweisung) ruft die Integration stattdessen sein Telefon an (siehe Weiterleitung) |
 | `nachricht_weitergeben` | fuer, nachricht | Ereignis; die Automation schickt den Text aufs Handy (nur für den Bewohner, nie für Mieter); nach 8 s Stille legt die Integration auf |
 | `auflegen` | – | Ruf endet, sobald die Verabschiedung gespielt ist |
 
@@ -114,9 +114,9 @@ Der Sensor hängt an einem Gerät „Empfang“; Namen und Symbole kommen aus `t
 - Rufe schiebt die Station selbst herein (SIP über UDP im Hausnetz); die Integration fragt dafür nichts ab.
 - Die Anmeldung an der Station erneuert sie nach 80 % der gewährten Zeit.
 - Den xAI-Schlüssel prüft sie beim Start, stündlich und nach jedem an xAI gescheiterten Ruf.
-- Bewohner, Angaben, Begrüßung und Anweisung liest sie bei jedem Ruf frisch aus ihren Einstellungen; eine Änderung dort gilt ab dem
-  nächsten Ruf. Im Code steht kein Name, und Helfer braucht sie keine.
-- Ob ein Gespräch den Bewohner betrifft (er wurde gerufen, bekam eine Nachricht, oder ein Wort seines Namens fällt) und ob das Ende
+- Begrüßung, Anweisung, Stichwörter und den SIP-Zugang liest sie bei jedem Ruf frisch aus ihren Einstellungen; eine Änderung dort gilt
+  ab dem nächsten Ruf. Im Code und in den Werkzeugen steht kein Name; wer der Bewohner ist, steht nur in der Anweisung.
+- Ob ein Gespräch den Bewohner betrifft (er wurde gerufen oder bekam eine Nachricht) und ob das Ende
   eine Störung war, entscheidet die Integration und gibt es im Ereignis „ende“ mit.
 - Der Sensor „Empfang Störung“ liest alle 30 s nur den eigenen Zustand.
 
@@ -129,15 +129,12 @@ Der Sensor hängt an einem Gerät „Empfang“; Namen und Symbole kommen aus `t
 
    | Abschnitt | Feld | Vorgabe | Bedeutung |
    |---|---|---|---|
-   | Bewohner und Namen | Bewohner | – | Vor- und Nachname dessen, für den der Empfang arbeitet; Variable `bewohner` |
-   | | Anrede | Herr | wie die Werkzeuge ihn nennen: Herr, Frau, Familie oder ohne (der ganze Name) |
-   | | Angaben | vier leere Zeilen | je Zeile `name: wert`; jede wird eine Variable der Anweisung (etwa `dachgeschoss: Familie Beispiel`) |
    | Begrüßung und Anweisung | Begrüßung | „Hello, guten Tag! Hier ist der Empfang …“ | der erste Satz, wörtlich gesprochen; Vorlage; Variable `begruessung` |
-   | | Anweisung | `vorgabe.py` | der Prompt; Vorlage, bei jedem Ruf neu gerendert |
+   | | Anweisung | `vorgabe.py` | der Prompt, der ganze Kontext in einem Text (wer wo wohnt, Paketbox, Regeln); Vorlage, bei jedem Ruf neu gerendert |
    | xAI (Grok Voice) | xAI-Schlüssel | – | wird vor dem Speichern bei xAI geprüft (kostet nichts) |
    | | Modell | grok-voice-latest | der Alias folgt den Aktualisierungen von xAI; ein Name mit Version legt es fest |
    | | Stimme | eve | Name der Stimme bei xAI |
-   | | Stichwörter | – | Wörter für die Erkennung; die Namen aus Bewohner und Angaben kommen von selbst dazu |
+   | | Stichwörter | – | Wörter für die Erkennung, vor allem die Namen im Haus, durch Komma getrennt |
    | Türstation | Türstation | – | Name oder Adresse der Station im Hausnetz |
    | | Nebenstelle | 9904 | Nummer der Innenstation |
    | | Passwort der Nebenstelle | – | Passwort dieser Innenstation an der Station |
@@ -145,10 +142,9 @@ Der Sensor hängt an einem Gerät „Empfang“; Namen und Symbole kommen aus `t
    | | SIP-Port der Türstation | 5060 | |
    | Weiterleitung aufs Telefon | SIP-Server, SIP-Benutzer, SIP-Passwort | – | ein SIP-Zugang eines Anbieters (UDP, Digest); frei lassen, wenn nicht gewünscht |
    | | Nummer, die angerufen wird | – | etwa das Handy des Bewohners; +49 … oder 0 … |
-   | | Weiterleiten, wenn | `{{ states('sensor.anwesend') == 'niemand' }}` | Vorlage; nur wenn sie wahr ergibt, wird weitergeleitet; leer: immer |
    | | Mitschrift speichern | an | Mitschriften im Tagebuch; aus hält sie heraus, auch aus den schon gespeicherten Rufen |
 
-   Vor dem Speichern prüft die Maske die Zeilen der Angaben, rendert Begrüßung und Anweisung streng (eine Variable, die es nicht gibt,
+   Vor dem Speichern prüft die Maske die Nummer, rendert Begrüßung und Anweisung streng (eine Variable, die es nicht gibt,
    ist ein Fehler) und fragt xAI nach dem Schlüssel. Schlüssel und Passwort zeigt sie nie wieder an; leer gelassen bleiben sie.
 4. Die Automationen aus `beispiele/` einspielen:
    - `klingel_unten.json`: am Ende eines Rufs eine Meldung mit der Mitschrift, wenn das Gespräch den Bewohner betrifft oder der
@@ -162,19 +158,18 @@ Der Sensor hängt an einem Gerät „Empfang“; Namen und Symbole kommen aus `t
 5. `tuer_assistent.stand` zeigt im Attribut `grok_voice` den Wert „angemeldet als 9904“ und im Attribut `xai` den Wert „ok“;
    `binary_sensor.empfang_stoerung` steht auf aus. Dasselbe steht oben in der Maske („Stand“).
 
-Ändern: am Eintrag „Konfigurieren“. Die Maske zeigt dann nur den Abschnitt mit den Namen offen. Namen, Angaben, Begrüßung und
-Anweisung gelten ab dem nächsten Ruf, ohne dass etwas neu startet. Ändert sich etwas an xAI, der Türstation oder „Mitschrift
+Ändern: am Eintrag das Zahnrad („Konfigurieren“). Offen stehen dann Begrüßung und Anweisung und, solange sie unvollständig ist, die
+Weiterleitung. Begrüßung, Anweisung, Stichwörter und Weiterleitung gelten ab dem nächsten Ruf, ohne dass etwas neu startet. Ändert sich etwas an xAI, der Türstation oder „Mitschrift
 speichern“, startet Grok Voice neu (ein laufender Ruf endet), Home Assistant nicht.
 
 ### Begrüßung und Anweisung
 
 Beides sind Vorlagen (Jinja) wie überall in Home Assistant. Die mitgelieferte Anweisung (`custom_components/tuer_assistent/vorgabe.py`)
-ist ein Beispiel für ein Haus mit drei Parteien und Briefkästen, die zugleich Paketboxen sind; sie nutzt die Angaben `dachgeschoss`,
-`untergeschoss`, `adresse` und `paketbox` und liest `sensor.anwesend` (Zustand `niemand` heißt: keiner zu Hause). Für ein anderes Haus
-den Text in der Maske anpassen oder ersetzen.
+ist ein Beispiel für ein Haus mit drei Parteien und Briefkästen, die zugleich Paketboxen sind, mit erfundenen Namen (Herr Max Muster im
+Erdgeschoss als Bewohner, Familie Beispiel oben, Familie Probe unten, Musterweg 1, Paketbox „hier am Eingang“); sie liest
+`sensor.anwesend` (Zustand `niemand` heißt: keiner zu Hause). Die eigenen Namen und das eigene Haus kommen direkt in diesen Text.
 
-- Variablen: `bewohner`, `anrede`, `begruessung` (nur in der Anweisung) und je Zeile der Angaben eine. Die Werte der Angaben sind Text
-  und werden nie ausgeführt.
+- Variable: `begruessung` (nur in der Anweisung); dazu alles, was Vorlagen in Home Assistant können.
 - Gespeichert wird nur eigener Text. Bleibt ein Feld bei der Vorgabe oder leer, gilt die Vorgabe der Integration, auch die einer
   späteren Version.
 - Welches Modell xAI wirklich nimmt, steht in `tuer_assistent.stand` (Attribut `modell`) und je Ruf im Tagebuch. Ein Wechsel steht
@@ -182,12 +177,13 @@ den Text in der Maske anpassen oder ersetzen.
 
 ### Weiterleitung aufs Telefon
 
-Ruft die KI `bewohner_rufen` (etwas ist dringend) und sind alle vier Felder des SIP-Zugangs gefüllt und „Weiterleiten, wenn“ wahr,
-wählt die Integration die Nummer über den Zugang, statt aufzulegen. Das Modell sagt dem Besucher, dass es verbindet; danach hört er
+Ruft die KI `bewohner_rufen` mit verbinden „ja“ (wann, entscheidet das Modell nach der Anweisung: in der Vorgabe, wenn der Bewohner nicht
+da ist und der Besucher ihn selbst sprechen muss, weil es dringend ist, er mit ihm reden möchte oder seine Unterschrift braucht) und
+sind alle vier Felder des SIP-Zugangs gefüllt, wählt die Integration die Nummer über den Zugang, statt aufzulegen. Das Modell sagt dem Besucher, dass es verbindet; danach hört er
 den Freiton. Nimmt der Bewohner ab, geht der Ton direkt zwischen Station und Telefon (G.711 im Codec der Station, ohne xAI); legt einer
 auf, endet der Ruf. Jede Taste feuert `tuer_assistent_taste`; was sie bewirkt, steht in einer eigenen Automation (Beispiel: Taste 1
-öffnet die Haustür). Nimmt niemand ab (25 s, besetzt, abgelehnt, Störung), sagt der Empfang, dass er nicht erreichbar ist, und nimmt
-eine Nachricht an.
+öffnet die Haustür). Nimmt niemand ab (25 s, besetzt, abgelehnt, Störung), sagt der Empfang „Leider erreiche ich gerade niemanden. Sie
+können gern eine Nachricht hinterlassen.“ und das Gespräch geht weiter.
 
 - SIP: REGISTER vor dem Anruf und Abmelden danach, INVITE mit Digest (401 und 407), CANCEL, BYE in beide Richtungen; Tasten nach
   RFC 4733 oder per SIP INFO. Hinter dem Router genügen in der Regel `rport` und der sofort gesendete Ton (Anbieter mit NAT-Erkennung);
@@ -200,13 +196,16 @@ eine Nachricht an.
 
 ### Von einer älteren Version kommend
 
+- Von 2.8.0: Bewohner, Anrede und Angaben gibt es nicht mehr; ihre Werte gehören in den Text der Anweisung (bei der Vorgabe: die
+  erfundenen Namen dort durch die eigenen ersetzen), die Namen auch in „Stichwörter“. „Weiterleiten, wenn“ entfällt: Wann verbunden
+  wird, steht in der Anweisung. Beim ersten Speichern verschwinden die alten Felder aus den Einstellungen.
 - Von 2.6.0: Die Zeile `tuer_assistent:` in `configuration.yaml` mit allem darunter entfernen; seit 2.7.0 liest die Integration dort
   nichts mehr. Den alten Text-Weg gibt es nicht mehr: Einen Sprachassistenten oder Gesprächsagenten, der `stt.empfang`,
   `conversation.empfang`, `tts.empfang` oder die Werkzeugliste „Tür-Assistent“ nutzte, vorher umstellen oder löschen; die vier alten
   Entitäten (dazu `select.empfang_ki`) danach unter Entitäten löschen.
 - Von 2.5.0 oder älter: erst 2.6.0 einspielen (übernimmt den Block `grok_voice:` einmal in die Einstellungen) oder die Werte gleich
-  in der Maske eintragen. Die Helfer für Namen, Adresse und Paketbox braucht es nicht mehr: Ihre Werte gehören in „Bewohner“ und
-  „Angaben“.
+  in der Maske eintragen. Die Helfer für Namen, Adresse und Paketbox braucht es nicht mehr: Ihre Werte gehören in den Text der
+  Anweisung.
 
 ## Fehlersuche
 
@@ -234,8 +233,7 @@ eine Nachricht an.
 - Kein Ersatzweg: Ohne Internet oder ohne xAI bleibt der Knopf stumm (die Meldung am Ende und der Sensor sagen es).
 - Ein Gespräch zur Zeit, höchstens 3 min; die Dahua-Station beendet von sich aus nach 2 min.
 - Die KI kann sich verhören, besonders bei Namen; die Anweisung lässt sie nachfragen. Was sie sagt, regelt die Anweisung, nicht der Code.
-- Die Texte der drei Werkzeuge stehen im Code und sind deutsch (mit „Paketbox“); die Anrede des Bewohners darin kommt aus den
-  Einstellungen.
+- Die Texte der drei Werkzeuge stehen im Code und sind deutsch (mit „Paketbox“), ohne Namen.
 - Die mitgelieferte Anweisung ist deutsch, auf ein Haus mit drei Wohnungen zugeschnitten und nennt den Bewohner „Herr“ mit Nachnamen;
   für ein anderes Haus oder eine andere Anrede den Text in der Maske anpassen.
 - Nur xAI Grok Voice als KI; erprobt nur an einer Dahua-Türstation.
@@ -284,7 +282,7 @@ Diese Dateien sind genau die, die in der Anlage des Autors laufen; sie werden na
 | `sip.py` | reine Hilfen ohne Zustand und ohne Home Assistant: SIP zerlegen und beantworten, SDP, RTP, Digest, Adressen |
 | `weiterleitung.py` | die Weiterleitung aufs Telefon (`Anruf`: Anmeldung beim Anbieter, Wählen, Ton, Tasten, Auflegen), G.711-Töne, der Probeanruf |
 | `config_flow.py` | die Maske (Einrichten und „Konfigurieren“), Prüfungen vor dem Speichern |
-| `vorgabe.py` | mitgelieferte Begrüßung, Anweisung und Beispiel-Angaben |
+| `vorgabe.py` | mitgelieferte Begrüßung und Anweisung (ein Text mit erfundenen Namen) |
 | `binary_sensor.py`, `diagnostics.py` | Sensor „Empfang Störung“, Diagnose |
 | `translations/`, `icons.json`, `services.yaml`, `quality_scale.yaml`, `brand/` | Texte, Symbole, Dienst, Prüfliste der Qualitätsskala, Symbol |
 
@@ -298,12 +296,20 @@ Regeln für Änderungen:
 - Kein Name, keine Adresse, kein Schlüssel im Code; alles Persönliche steht in den Einstellungen des Eintrags.
 - Was der Besucher sagt, kommt nie ins Log; die Werkzeuge schalten nichts und lesen keinen Zustand.
 - Kommentare und Texte sind deutsch; jede Frist und jede Grenze als Konstante mit Kommentar, warum.
-- Die Prüfungen (77, mit gestellter Station, gestelltem xAI und gestelltem SIP-Server des Anbieters; Abdeckung 95 %, jedes Modul
+- Die Prüfungen (76, mit gestellter Station, gestelltem xAI und gestelltem SIP-Server des Anbieters; Abdeckung 95 %, jedes Modul
   über 90 %) liegen im Projektordner der Anlage (`pruefung/tests/test_tuer_assistent.py`, `test_grok_voice.py`, `test_oberflaeche.py`,
   `test_robust_*.py`, `test_weiterleitung.py`), weil sie deren
   Prüfstand brauchen; eine Änderung gilt erst, wenn sie dort grün sind.
 
 ## Stand
+
+Version 2.9.0 (22.11.2026):
+
+- Die Anweisung ist der ganze Kontext in einem Text; die Felder Bewohner, Anrede und Angaben sind entfallen, die Werkzeuge nennen keinen
+  Namen mehr, und ob ein Gespräch den Bewohner betrifft, sagen allein die Werkzeuge.
+- Wann zum Telefon verbunden wird, entscheidet das Modell (Feld `verbinden` bei `bewohner_rufen`); „Weiterleiten, wenn“ entfällt.
+- Die Maske hält die Weiterleitung offen, bis sie vollständig ist.
+- 76 Tests, Abdeckung 95 % (`weiterleitung.py` 93 %, die übrigen Module 95 bis 100 %).
 
 Version 2.8.0 (21.11.2026):
 

@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Door assistant (reception)",
-        "description": "The reception registers as an indoor station of its own at the door station and talks to visitors (speech to speech with xAI Grok Voice). Names are at the top, followed by greeting and instructions and the access to xAI and the door station.",
+        "description": "The reception registers as an indoor station of its own at the door station and talks to visitors (speech to speech with xAI Grok Voice). Greeting and instructions (the whole context in one text) are at the top, followed by the access to xAI, the door station and the forwarding to a phone.",
         "data": {
           "mitschrift_speichern": "Store transcripts"
         },
@@ -11,30 +11,16 @@
           "mitschrift_speichern": "Keep the last calls with their transcript in .storage/tuer_assistent.rufe. Off: without transcript, also in calls already stored."
         },
         "sections": {
-          "namen": {
-            "name": "Resident and names",
-            "description": "Who the reception works for and who else lives in the house.",
-            "data": {
-              "bewohner": "Resident",
-              "anrede": "Form of address",
-              "angaben": "Details"
-            },
-            "data_description": {
-              "bewohner": "First and last name of the person the reception works for: it notifies them and takes messages for them. In the instructions: the variable bewohner.",
-              "anrede": "How the tools refer to them: “Herrn Muster”, “Frau Muster”, “Familie Muster”, or the full name without a title. The built-in instructions call them “Herr” plus last name; for another form of address adapt the text there.",
-              "angaben": "One “name: value” per line, for example the names on the other bells. Each line becomes a variable of the instructions: “dachgeschoss: Familie Beispiel” is available as the variable dachgeschoss. The name before the colon may only use ASCII letters, digits and underscore; the value is plain text and is never executed."
-            }
-          },
           "texte": {
             "name": "Greeting and instructions",
-            "description": "What the reception says first and how it behaves. Both are templates, rendered for every call. They are prefilled with the built-in default; saved unchanged or empty, the default keeps applying, including that of a later version.",
+            "description": "The instructions are the whole context in one text: whom the reception works for, who else lives in the house, where the parcel box is, and how it behaves. Both are templates, rendered anew for every call. Prefilled with the bundled default using invented names; saved unchanged or empty, the default keeps applying, including that of a later version.",
             "data": {
               "begruessung": "Greeting",
               "anweisung": "Instructions"
             },
             "data_description": {
               "begruessung": "The first sentence of the reception, spoken verbatim. In the instructions: the variable begruessung.",
-              "anweisung": "The prompt. Variables: bewohner, anrede, begruessung and one per line of the details. A variable that does not exist is an error; with the “default” filter it may be missing."
+              "anweisung": "The prompt with everything the reception needs to know. Template: variable begruessung and everything templates in Home Assistant can do, e.g. states('sensor.anwesend'). An undefined variable is an error; with the “default” filter it may be missing."
             }
           },
           "xai": {
@@ -49,7 +35,7 @@
               "schluessel": "API key from the xAI account.",
               "modell": "“grok-voice-latest” follows the updates by xAI; a versioned name pins it. The status shows which model xAI actually uses.",
               "stimme": "Name of the voice at xAI, for example eve.",
-              "stichwoerter": "Words the recognition should know, separated by commas. Capitalised words from “Resident” and “Details” (the names) are added automatically."
+              "stichwoerter": "Words the recognition should know, above all the names in the house, separated by commas."
             }
           },
           "station": {
@@ -71,20 +57,18 @@
           },
           "weiterleitung": {
             "name": "Forward to a phone",
-            "description": "When a visitor says it is important (the reception then calls “bewohner_rufen”), the reception calls the number through this SIP account. The visitor hears the ringing tone; when the resident answers, both talk to each other, and every key press fires the event tuer_assistent_taste (what a key does, e.g. 1 = open the door, belongs in an automation of your own). If nobody answers, the reception carries on. Active only with all four fields; test: action tuer_assistent.anruf_testen.",
+            "description": "If a visitor has to speak to the resident in person, the model decides from the instructions to connect (bewohner_rufen with verbinden “ja”); the reception then calls the number through this SIP account. The visitor hears the ringing tone; when the resident answers, both talk to each other, and every key press fires the event tuer_assistent_taste (what a key does, e.g. 1 = open the door, belongs in an automation of your own). If nobody answers, the reception carries on. Active only with all four fields; test: action tuer_assistent.anruf_testen.",
             "data": {
               "sip_server": "SIP server",
               "sip_nutzer": "SIP user",
               "sip_passwort": "SIP password",
-              "ziel": "Number to call",
-              "weiterleiten_wenn": "Forward when"
+              "ziel": "Number to call"
             },
             "data_description": {
               "sip_server": "Host name of the provider's SIP server, with :port if needed (default 5060, UDP).",
               "sip_nutzer": "User name of the SIP account.",
               "sip_passwort": "Password of the SIP account. Never shown: leave empty to keep it.",
-              "ziel": "Phone number, e.g. the mobile; +49 … or 0 … .",
-              "weiterleiten_wenn": "Template; forwarding only happens when it renders true, otherwise as without an account. Empty: always. The suggestion is the same condition as “weg” in the bundled instructions."
+              "ziel": "Phone number, e.g. the mobile; +49 … or 0 … ."
             }
           }
         }
@@ -94,11 +78,9 @@
       "leer": "“{feld}” must not be empty.",
       "schluessel_fehlt": "The xAI API key is missing (section xAI).",
       "passwort_fehlt": "The extension password is missing (section Door station).",
-      "angaben": "Details, line {zeile}: expected “name: value” with a name of ASCII letters, digits and underscore that is not a duplicate and not bewohner, anrede, begruessung or grok_voice.",
       "vorlage": "Greeting or instructions cannot be rendered: {grund}",
       "schluessel": "xAI does not accept the key: {grund}",
-      "ziel": "The number to call is not a phone number (allowed: digits, starting with + or 0).",
-      "vorlage_weiter": "“Forward when” cannot be rendered: {grund}"
+      "ziel": "The number to call is not a phone number (allowed: digits, starting with + or 0)."
     },
     "abort": {
       "single_instance_allowed": "There is only one door assistant; its settings are under \"Configure\" on its entry."
@@ -108,7 +90,7 @@
     "step": {
       "init": {
         "title": "Door assistant (reception)",
-        "description": "Status: {stand}. Names, greeting and instructions apply from the next call. A change to xAI, the door station or “Store transcripts” restarts the reception; a call in progress ends. Key and password are never shown: leave them empty to keep them. Forwarding: {weiterleitung}.",
+        "description": "Status: {stand}. Greeting, instructions, keywords and forwarding apply from the next call. A change to xAI, the door station or “Store transcripts” restarts the reception; a call in progress ends. Key and password are never shown: leave them empty to keep them. Forwarding: {weiterleitung}.",
         "data": {
           "mitschrift_speichern": "Store transcripts"
         },
@@ -116,30 +98,16 @@
           "mitschrift_speichern": "Keep the last calls with their transcript in .storage/tuer_assistent.rufe. Off: without transcript, also in calls already stored."
         },
         "sections": {
-          "namen": {
-            "name": "Resident and names",
-            "description": "Who the reception works for and who else lives in the house.",
-            "data": {
-              "bewohner": "Resident",
-              "anrede": "Form of address",
-              "angaben": "Details"
-            },
-            "data_description": {
-              "bewohner": "First and last name of the person the reception works for: it notifies them and takes messages for them. In the instructions: the variable bewohner.",
-              "anrede": "How the tools refer to them: “Herrn Muster”, “Frau Muster”, “Familie Muster”, or the full name without a title. The built-in instructions call them “Herr” plus last name; for another form of address adapt the text there.",
-              "angaben": "One “name: value” per line, for example the names on the other bells. Each line becomes a variable of the instructions: “dachgeschoss: Familie Beispiel” is available as the variable dachgeschoss. The name before the colon may only use ASCII letters, digits and underscore; the value is plain text and is never executed."
-            }
-          },
           "texte": {
             "name": "Greeting and instructions",
-            "description": "What the reception says first and how it behaves. Both are templates, rendered for every call. They are prefilled with the built-in default; saved unchanged or empty, the default keeps applying, including that of a later version.",
+            "description": "The instructions are the whole context in one text: whom the reception works for, who else lives in the house, where the parcel box is, and how it behaves. Both are templates, rendered anew for every call. Prefilled with the bundled default using invented names; saved unchanged or empty, the default keeps applying, including that of a later version.",
             "data": {
               "begruessung": "Greeting",
               "anweisung": "Instructions"
             },
             "data_description": {
               "begruessung": "The first sentence of the reception, spoken verbatim. In the instructions: the variable begruessung.",
-              "anweisung": "The prompt. Variables: bewohner, anrede, begruessung and one per line of the details. A variable that does not exist is an error; with the “default” filter it may be missing."
+              "anweisung": "The prompt with everything the reception needs to know. Template: variable begruessung and everything templates in Home Assistant can do, e.g. states('sensor.anwesend'). An undefined variable is an error; with the “default” filter it may be missing."
             }
           },
           "xai": {
@@ -154,7 +122,7 @@
               "schluessel": "API key from the xAI account. Leave empty to keep it.",
               "modell": "“grok-voice-latest” follows the updates by xAI; a versioned name pins it. The status shows which model xAI actually uses.",
               "stimme": "Name of the voice at xAI, for example eve.",
-              "stichwoerter": "Words the recognition should know, separated by commas. Capitalised words from “Resident” and “Details” (the names) are added automatically."
+              "stichwoerter": "Words the recognition should know, above all the names in the house, separated by commas."
             }
           },
           "station": {
@@ -176,20 +144,18 @@
           },
           "weiterleitung": {
             "name": "Forward to a phone",
-            "description": "When a visitor says it is important (the reception then calls “bewohner_rufen”), the reception calls the number through this SIP account. The visitor hears the ringing tone; when the resident answers, both talk to each other, and every key press fires the event tuer_assistent_taste (what a key does, e.g. 1 = open the door, belongs in an automation of your own). If nobody answers, the reception carries on. Active only with all four fields; test: action tuer_assistent.anruf_testen.",
+            "description": "If a visitor has to speak to the resident in person, the model decides from the instructions to connect (bewohner_rufen with verbinden “ja”); the reception then calls the number through this SIP account. The visitor hears the ringing tone; when the resident answers, both talk to each other, and every key press fires the event tuer_assistent_taste (what a key does, e.g. 1 = open the door, belongs in an automation of your own). If nobody answers, the reception carries on. Active only with all four fields; test: action tuer_assistent.anruf_testen.",
             "data": {
               "sip_server": "SIP server",
               "sip_nutzer": "SIP user",
               "sip_passwort": "SIP password",
-              "ziel": "Number to call",
-              "weiterleiten_wenn": "Forward when"
+              "ziel": "Number to call"
             },
             "data_description": {
               "sip_server": "Host name of the provider's SIP server, with :port if needed (default 5060, UDP).",
               "sip_nutzer": "User name of the SIP account.",
               "sip_passwort": "Password of the SIP account. Never shown: leave empty to keep it.",
-              "ziel": "Phone number, e.g. the mobile; +49 … or 0 … .",
-              "weiterleiten_wenn": "Template; forwarding only happens when it renders true, otherwise as without an account. Empty: always. The suggestion is the same condition as “weg” in the bundled instructions."
+              "ziel": "Phone number, e.g. the mobile; +49 … or 0 … ."
             }
           }
         }
@@ -199,11 +165,9 @@
       "leer": "“{feld}” must not be empty.",
       "schluessel_fehlt": "The xAI API key is missing (section xAI).",
       "passwort_fehlt": "The extension password is missing (section Door station).",
-      "angaben": "Details, line {zeile}: expected “name: value” with a name of ASCII letters, digits and underscore that is not a duplicate and not bewohner, anrede, begruessung or grok_voice.",
       "vorlage": "Greeting or instructions cannot be rendered: {grund}",
       "schluessel": "xAI does not accept the key: {grund}",
-      "ziel": "The number to call is not a phone number (allowed: digits, starting with + or 0).",
-      "vorlage_weiter": "“Forward when” cannot be rendered: {grund}"
+      "ziel": "The number to call is not a phone number (allowed: digits, starting with + or 0)."
     }
   },
   "issues": {

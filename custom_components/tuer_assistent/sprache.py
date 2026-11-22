@@ -32,7 +32,8 @@ mit Port 0 ab.
   nichts und machte nur die Prüfung unberechenbar. Den Namen der Station löst sie bei jeder Anmeldung neu auf. Beim Anhalten von Home
   Assistant meldet sie sich ab.
 - Begrüßung und Anweisung: aus den Einstellungen des Eintrags (Vorlagen; fehlt eine, gilt die Vorgabe aus vorgabe.py), bei jedem Ruf
-  frisch gerendert mit dem Bewohner, der Anrede und den Angaben als Variablen (`texte()`), streng: Eine Variable, die es nicht gibt,
+  frisch gerendert (`texte()`; seit 2.9.0 steht der ganze Kontext in der Anweisung, ohne eigene Felder für Namen), streng: Eine
+  Variable, die es nicht gibt,
   ist ein Fehler und kein leerer Text; die Maske prüft das vor dem Speichern. Die Begrüßung kommt als fester Text (force_message),
   ohne das Modell zu fragen, GRUSS_VERZUG s nach der Annahme (die Station spielt dann noch ihre Ansage); die Annahme selbst wartet
   nicht. Die Anweisung bekommt den Satz als `begruessung`.
@@ -49,7 +50,8 @@ mit Port 0 ab.
   inzwischen neu, gilt dieser Aufruf dem vorigen Ruf). Nach „bewohner_rufen“ endet der Ruf ebenso nach der Antwort, damit die
   Sprechanlage frei ist und er sich über die App melden kann (Wort des Betreibers vom 11.11.2026 nachts: „solange der Grok damit redet, dann kann
   ich nicht telefonieren … direkt auflegen und sagen, ich hab Bescheid gesagt, der [Bewohner] könnte sich jeden Moment mit der Sprechanlage
-  verbinden“). Ist ein SIP-Zugang eingetragen und gilt „Weiterleiten, wenn“, ruft die Integration stattdessen sein Telefon an
+  verbinden“). Ist ein SIP-Zugang eingetragen und ruft das Modell bewohner_rufen mit verbinden „ja“ (wann, entscheidet es nach der
+  Anweisung; sein Wort vom 22.11.2026: „das mit dem Anruf darf grok selber entscheiden“), ruft die Integration stattdessen sein Telefon an
   (weiterleitung.py; sein Wort vom 21.11.2026: „wenn jemand sagt es wäre wichtig weiterleitet. und schau das ich mit 1 die Tür öffnen
   kann“): Nach dem Satz des Empfangs hört der Besucher den Freiton, nimmt er ab, geht der Ton direkt zwischen Station und Telefon (xAI
   hört nicht mehr mit, die Fristen des Wächters ruhen, außer TON_AUS); legt einer auf, endet der Ruf. Nimmt er nicht ab, sagt der
@@ -114,8 +116,8 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.template import Template
 from homeassistant.util import dt as dt_util
 
-from . import (DOMAIN, ERGEBNIS_WEITER, LAENGE, MITSCHRIFT, NICHT_ERREICHT, VORGABEN, WEITER, Werkzeug, _stand, angaben_lesen,
-               einstellungen, formen, sauber, vorgabe, werkzeuge)
+from . import (DOMAIN, ERGEBNIS_WEITER, LAENGE, MITSCHRIFT, NICHT_ERREICHT, VORGABEN, WEITER, Werkzeug, _stand, einstellungen, sauber,
+               vorgabe, werkzeuge)
 from .sip import Angebot, adressen, antwort, digest, feld, rtp_nutzlast, sdp_antwort, sdp_lesen, waehlen, zerlege
 from .weiterleitung import Anruf, Zugang, freiton, zugang
 
@@ -159,38 +161,18 @@ def werkzeug_schemas(hass: HomeAssistant) -> list[dict]:
             for name, beschreibung, felder, _ in werkzeuge(hass)]
 
 
-def variablen(e: Mapping) -> dict:
-    """Variablen für Begrüßung und Anweisung aus den Einstellungen `e`: der Bewohner, die Anrede und je Zeile der Angaben eine. Eine
-    Zeile der Angaben, die nicht passt, kostet hier alle Angaben (die Maske lässt so etwas nicht speichern)."""
-    try:
-        angaben = angaben_lesen(e.get("angaben"))
-    except ValueError:
-        angaben = {}
-    return {**angaben, "grok_voice": True, "bewohner": sauber(e.get("bewohner"), 100), "anrede": e.get("anrede") or VORGABEN["anrede"]}
-
-
 def texte(hass: HomeAssistant, e: Mapping) -> tuple[str, str]:
     """Begrüßung und Anweisung, gerendert aus den Einstellungen `e` (fehlt eine, aus der Vorgabe). Streng: Wirft TemplateError auch
     für eine Variable, die es nicht gibt. So prüft die Maske vor dem Speichern, und so rendert jeder Ruf."""
-    var = variablen(e)
-    gruss = " ".join(Template(str(e.get("begruessung") or vorgabe.BEGRUESSUNG), hass).async_render(var, parse_result=False, strict=True).split())
+    gruss = " ".join(Template(str(e.get("begruessung") or vorgabe.BEGRUESSUNG), hass).async_render({}, parse_result=False, strict=True).split())
     gruss = gruss or BEGRUESSUNG
-    anweisung = Template(str(e.get("anweisung") or vorgabe.ANWEISUNG), hass).async_render({**var, "begruessung": gruss}, parse_result=False, strict=True)
+    anweisung = Template(str(e.get("anweisung") or vorgabe.ANWEISUNG), hass).async_render({"begruessung": gruss}, parse_result=False, strict=True)
     return gruss, anweisung
 
 
 def stichwoerter(e: Mapping) -> list[str]:
-    """Wörter als Hilfe für die Erkennung (keyterms): die großgeschriebenen aus Bewohner und Angaben (Namen) und das Feld „Stichwörter“."""
-    quellen = [str(e.get("bewohner") or "")]
-    try:
-        quellen += angaben_lesen(e.get("angaben")).values()
-    except ValueError:
-        pass
+    """Wörter als Hilfe für die Erkennung (keyterms): das Feld „Stichwörter“ (Namen im Haus und andere Wörter), je Komma eins."""
     woerter: list[str] = []
-    for w in re.split(r"[\s,;]+", " ".join(quellen)):
-        w = re.sub(r"[^0-9A-Za-zÀ-ÿ-]", "", w)
-        if len(w) > 2 and w[0].isupper() and w not in ("Herr", "Frau", "Familie") and w not in woerter:
-            woerter.append(w[:50])
     for w in re.split(r"[,;\n]+", str(e.get("stichwoerter") or "")):
         w = sauber(w, 50)
         if w and w not in woerter:
@@ -669,9 +651,10 @@ class Ruf:
                 self.auflegen_wunsch = True
                 self.b.auflegen_um = time.monotonic()  # die Automation ruft den Dienst 6 s später; bis dahin kann schon ein neuer Ruf laufen
             elif name == "bewohner_rufen" and self.weiter is None:
-                if (z := self._weiter_zugang()) is not None:  # sein Telefon anrufen, das Modell kündigt es an
+                verbinden = str(argumente.get("verbinden") if isinstance(argumente, dict) else "").strip().lower() in ("ja", "true", "yes")
+                if verbinden and (z := self._weiter_zugang()) is not None:  # sein Telefon anrufen, das Modell kündigt es an
                     self._weiterleiten(z)
-                    ausgabe = {"ergebnis": ERGEBNIS_WEITER.format(**formen(self.hass)) + WEITER}
+                    ausgabe = {"ergebnis": ERGEBNIS_WEITER + WEITER}
                 else:  # die Sprechanlage für ihn freimachen: nach dieser Antwort auflegen
                     self.auflegen_wunsch, self.auflegen_grund = True, "aufgelegt nach dem Bescheid an dich (Sprechanlage frei)"
         await self.raus.put({"type": "conversation.item.create", "item": {
@@ -684,25 +667,15 @@ class Ruf:
 
     # --- Weiterleitung aufs Telefon -------------------------------------------------------------------------------------------------
     def _weiter_zugang(self) -> Zugang | None:
-        """Der SIP-Zugang, wenn jetzt weitergeleitet wird: eingetragen, „Weiterleiten, wenn“ gilt (leer: immer), nicht gesperrt."""
-        e = einstellungen(self.hass)
-        z = zugang(e)
+        """Der SIP-Zugang, wenn jetzt weitergeleitet wird: eingetragen und nicht gesperrt (das Modell hat verbinden „ja“ gesagt)."""
+        z = zugang(einstellungen(self.hass))
         if z is None:
+            self.schritt("keine Weiterleitung: kein SIP-Zugang eingetragen")
             return None
         if time.monotonic() - self.b.zuletzt_weiter < SPERRE_WEITER:
             self.schritt("keine Weiterleitung: die letzte ist keine %d s her" % SPERRE_WEITER)
             return None
-        wenn = str(e.get("weiterleiten_wenn") or "").strip()
-        if not wenn:
-            return z
-        try:
-            gilt = str(Template(wenn, self.hass).async_render(parse_result=False)).strip().lower() in ("true", "1", "on", "ja", "yes")
-        except TemplateError as err:
-            _LOGGER.warning("Grok Voice: „Weiterleiten, wenn“ lässt sich nicht rendern (%s); nicht weitergeleitet", type(err.__cause__ or err).__name__)
-            return None
-        if not gilt:
-            self.schritt("keine Weiterleitung: „Weiterleiten, wenn“ gilt nicht")
-        return z if gilt else None
+        return z
 
     def _weiterleiten(self, z: Zugang) -> None:
         self.b.zuletzt_weiter = time.monotonic()
@@ -754,7 +727,7 @@ class Ruf:
         self.zuletzt_besucher = time.monotonic()
         await self.raus.put({"type": "conversation.item.create", "item": {
             "type": "force_message", "role": "assistant", "interruptible": True,
-            "content": [{"type": "output_text", "text": NICHT_ERREICHT.format(**formen(self.hass))}]}})
+            "content": [{"type": "output_text", "text": NICHT_ERREICHT}]}})
 
     async def _folgeantwort(self) -> None:
         self.offen += 1
@@ -814,14 +787,10 @@ class Ruf:
             await _schliessen(self.ws)
 
     def betrifft_bewohner(self) -> bool:
-        """Geht das Gespräch den Bewohner an? Er wurde gerufen, bekam eine Nachricht, oder ein Wort seines Namens fällt in der
-        Mitschrift. Danach entscheidet die Automation der Klingel, ob die Meldung aufs Handy geht (Gespräche nur über andere Bewohner
-        nicht; sein Wort vom 11.11.2026: „Die sollten überhaupt nicht zu mir kommen“)."""
-        if any(w in self.gerufen for w in ("bewohner_rufen", "nachricht_weitergeben")):
-            return True
-        text = "\n".join(self.protokoll).lower()
-        namen = [w.lower() for w in re.findall(r"[A-Za-zÀ-ÿ-]{3,}", str(einstellungen(self.hass).get("bewohner") or ""))]
-        return any(n in text for n in namen if n not in ("herr", "frau", "familie", "und"))
+        """Geht das Gespräch den Bewohner an? Er wurde gerufen oder bekam eine Nachricht (seit 2.9.0 ohne Namensprüfung: der Name steht
+        nur noch in der Anweisung). Danach entscheidet die Automation der Klingel, ob die Meldung aufs Handy geht (Gespräche nur über
+        andere Bewohner nicht; sein Wort vom 11.11.2026: „Die sollten überhaupt nicht zu mir kommen“)."""
+        return any(w in self.gerufen for w in ("bewohner_rufen", "nachricht_weitergeben"))
 
     def _ende_melden(self) -> None:
         """Einmal je Ruf: das ganze Gespräch und der Grund des Endes (die Automation der Klingel schickt es aufs Handy)."""
