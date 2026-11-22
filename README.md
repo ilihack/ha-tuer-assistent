@@ -303,6 +303,17 @@ Regeln für Änderungen:
 
 ## Stand
 
+Version 2.9.4 (22.11.2026):
+
+- Mitgelieferte Anweisung: kein Verweis mehr auf den Notruf. Bei Notfall oder Gefahr (Feuer, Rauch, Gasgeruch, Wasser, Verletzte,
+  jemand hilflos, Einbruch) holt der Empfang sofort den Bewohner: Ist er nicht da, wird ohne Rückfrage verbunden; ist er da, geht der
+  Besucher an seine Klingel. Den Notruf wählen die Leute selbst; fragt jemand, ob er Feuerwehr oder Polizei rufen soll, sagt der
+  Empfang ja. Kein Rat mehr, keine Klingel zu drücken. Einsatzkräfte erfahren, wer wo wohnt, und werden sonst wie ein Notfall
+  behandelt.
+- Ist der Bewohner nicht da, fragt der Empfang bei einem offenen Anliegen, ob er ihn anrufen oder ihm eine Nachricht schicken soll;
+  der Besucher entscheidet, nur bei Dringendem ruft er ohne Frage an. Hinweise von Passanten (Licht am Auto, Tor offen) laufen
+  genauso; ist der Bewohner da, heißt die Wahl Nachricht oder selbst sprechen (dann an seine Klingel).
+
 Version 2.9.3 (22.11.2026):
 
 - Mitgelieferte Anweisung: Gefahr und Notfall genauer (Feuer, Rauch, Gasgeruch, Verletzte, jemand hilflos: der Besucher ruft selbst
