@@ -303,6 +303,14 @@ Regeln für Änderungen:
 
 ## Stand
 
+Version 2.9.3 (22.11.2026):
+
+- Mitgelieferte Anweisung: Gefahr und Notfall genauer (Feuer, Rauch, Gasgeruch, Verletzte, jemand hilflos: der Besucher ruft selbst
+  die 112, bei Einbruch oder einer Straftat die 110; bei Gasgeruch Abstand halten und keine Klingel mehr drücken; dann Bescheid an den
+  Bewohner). Feuerwehr, Rettungsdienst und Polizei bekommen keinen Hinweis auf 112 oder 110 und werden wie ein dringendes Anliegen
+  behandelt (zu den anderen Bewohnern: an deren Klingel). Hinweise von Passanten zum Haus oder zu einem Auto davor gehen als
+  Nachricht an den Bewohner.
+
 Version 2.9.2 (22.11.2026):
 
 - Mitgelieferte Anweisung: Die Fälle sind Beispiele und Richtung; was nicht genau passt, entscheidet das Modell im Sinn des Ziels.
